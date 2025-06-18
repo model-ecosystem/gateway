@@ -29,17 +29,17 @@ func NewHTTPConnector(client *http.Client, defaultTimeout time.Duration) *HTTPCo
 // Forward implements the Connector interface for HTTP backends
 func (c *HTTPConnector) Forward(ctx context.Context, req core.Request, route *core.RouteResult) (core.Response, error) {
 	instance := route.Instance
-	
+
 	// Apply route-specific timeout if configured
 	timeout := c.defaultTimeout
 	if route.Rule != nil && route.Rule.Timeout > 0 {
 		timeout = route.Rule.Timeout
 	}
-	
+
 	// Create context with timeout
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	
+
 	// Build backend URL
 	backendURL, err := c.buildBackendURL(req, instance)
 	if err != nil {
@@ -102,25 +102,20 @@ func (c *HTTPConnector) buildBackendURL(req core.Request, instance *core.Service
 }
 
 // isHopByHopHeader checks if a header is a hop-by-hop header
+var hopByHopHeaders = map[string]struct{}{
+	"connection":          {},
+	"keep-alive":          {},
+	"proxy-authenticate":  {},
+	"proxy-authorization": {},
+	"te":                  {},
+	"trailers":            {},
+	"transfer-encoding":   {},
+	"upgrade":             {},
+}
+
 func isHopByHopHeader(header string) bool {
-	hopByHopHeaders := []string{
-		"Connection",
-		"Keep-Alive",
-		"Proxy-Authenticate",
-		"Proxy-Authorization",
-		"TE",
-		"Trailers",
-		"Transfer-Encoding",
-		"Upgrade",
-	}
-	
-	header = strings.ToLower(header)
-	for _, h := range hopByHopHeaders {
-		if strings.ToLower(h) == header {
-			return true
-		}
-	}
-	return false
+	_, ok := hopByHopHeaders[strings.ToLower(header)]
+	return ok
 }
 
 // httpResponse implements core.Response for HTTP responses
