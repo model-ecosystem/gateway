@@ -1,0 +1,57 @@
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8443
+      readTimeout: 30
+      writeTimeout: 30
+      tls:
+        enabled: true
+        certFile: "/path/to/cert.pem"
+        keyFile: "/path/to/key.pem"
+        minVersion: "TLS1.2"
+  backend:
+    http:
+      # Connection pool settings
+      maxIdleConns: 100          # Maximum idle connections across all hosts
+      maxIdleConnsPerHost: 10    # Maximum idle connections per host
+      idleConnTimeout: 90        # How long idle connections are kept alive (seconds)
+      
+      # Keep-alive settings
+      keepAlive: true            # Enable HTTP keep-alive
+      keepAliveTimeout: 30       # Keep-alive timeout (seconds)
+      
+      # Additional transport settings
+      dialTimeout: 10            # Connection dial timeout (seconds)
+      responseHeaderTimeout: 10  # Timeout waiting for response headers (seconds)
+
+  registry:
+    type: static
+    static:
+      services:
+        - name: example-service
+          instances:
+            - id: example-1
+              address: "127.0.0.1"
+              port: 3000
+              health: healthy
+            - id: example-2
+              address: "127.0.0.1"
+              port: 3001
+              health: healthy
+
+  router:
+    rules:
+      - id: example-route
+        path: /api/example/*
+        methods: ["GET", "POST", "PUT", "DELETE"]
+        serviceName: example-service
+        loadBalance: round_robin
+        timeout: 30
+
+      - id: health-route
+        path: /health
+        methods: ["GET"]
+        serviceName: example-service
+        loadBalance: round_robin
+        timeout: 5
