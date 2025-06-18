@@ -34,7 +34,7 @@ make clean
 
 ## Configuration
 
-Configuration is in `configs/gateway.yaml`:
+Configuration is stored in `configs/gateway.yaml`:
 
 ```yaml
 gateway:
@@ -67,15 +67,17 @@ gateway:
 
 ## Architecture
 
-The gateway follows a clean layered architecture with idiomatic Go patterns:
+The gateway follows a clean layered architecture with idiomatic Go patterns.
 
 ### Layers
+
 - **Frontend Layer**: HTTP adapter that receives requests
-- **Routing Layer**: Routes requests to appropriate backend services
-- **Backend Layer**: Handles forwarding requests to backend instances
+- **Routing Layer**: Routes requests to backend services
+- **Backend Layer**: Forwards requests to backend instances
 - **Middleware Layer**: Cross-cutting concerns like logging and recovery
 
 ### Key Patterns
+
 - Function types for handlers and middleware
 - Small, focused interfaces
 - Streaming responses (no buffering)
@@ -87,10 +89,10 @@ The gateway follows a clean layered architecture with idiomatic Go patterns:
 
 ```
 gateway/
-├── cmd/gateway/        # Main program (simplified assembly only)
-├── configs/            # Configuration files (copied to build/)
+├── cmd/gateway/        # Main program
+├── configs/            # Configuration files
 ├── internal/           # Private packages
-│   ├── backend/        # Backend connectors (HTTP, future: gRPC)
+│   ├── backend/        # Backend connectors
 │   ├── config/         # Config loading
 │   ├── core/           # Core types and interfaces
 │   ├── frontend/http/  # HTTP server with error handling
@@ -98,13 +100,13 @@ gateway/
 │   ├── registry/       # Service discovery
 │   └── router/         # Routing with load balancing
 └── pkg/                # Public packages
-    ├── errors/         # Structured error types
-    └── pool/           # Generic pool
+    └── errors/         # Structured error types
 ```
 
 ## Error Handling
 
-The gateway uses structured errors that automatically map to HTTP status codes:
+Structured errors automatically map to HTTP status codes:
+
 - `ErrorTypeNotFound` → 404 (route or service not found)
 - `ErrorTypeUnavailable` → 503 (no healthy instances)
 - `ErrorTypeTimeout` → 408 (request timeout)
@@ -124,7 +126,8 @@ Use the provided scripts for testing:
 ./scripts/test-gateway.sh
 ```
 
-Or manually:
+### Manual Testing
+
 ```bash
 # Start test servers
 go run test/test-server.go -port 3000 &
@@ -143,3 +146,7 @@ curl http://localhost:8080/api/example/test
 
 - `gopkg.in/yaml.v3` - YAML configuration parsing
 - Standard library only for all other functionality
+
+## License
+
+This project is released under the [MIT License](LICENSE).
