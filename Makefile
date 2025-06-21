@@ -38,6 +38,11 @@ test:
 	@echo "Running tests..."
 	@go test -v ./...
 
+# Run unit tests only (excluding integration tests)
+test-unit:
+	@echo "Running unit tests..."
+	@go test -v $(shell go list ./... | grep -v /test/integration)
+
 # Run tests with coverage
 test-coverage:
 	@echo "Running tests with coverage..."
