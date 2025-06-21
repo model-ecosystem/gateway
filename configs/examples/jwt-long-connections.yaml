@@ -1,0 +1,154 @@
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+      readTimeout: 30
+      writeTimeout: 30
+    
+    # SSE configuration with JWT validation
+    sse:
+      enabled: true
+      writeTimeout: 300      # 5 minutes write timeout
+      keepaliveTimeout: 30   # Send keepalive every 30 seconds
+    
+    # WebSocket configuration with JWT validation
+    websocket:
+      enabled: true
+      host: "0.0.0.0"
+      port: 8081
+      readTimeout: 60
+      writeTimeout: 60
+      handshakeTimeout: 10
+      readBufferSize: 4096
+      writeBufferSize: 4096
+      maxMessageSize: 1048576  # 1MB
+      checkOrigin: true
+      allowedOrigins:
+        - "http://localhost:3000"
+        - "https://app.example.com"
+  
+  backend:
+    http:
+      maxIdleConns: 100
+      maxIdleConnsPerHost: 10
+      idleConnTimeout: 90
+      keepAlive: true
+      keepAliveTimeout: 30
+      dialTimeout: 10
+      responseHeaderTimeout: 10
+    
+    sse:
+      writeTimeout: 300
+      flushInterval: 1
+      keepalive: true
+      keepaliveInterval: 30
+    
+    websocket:
+      readTimeout: 60
+      writeTimeout: 60
+      handshakeTimeout: 10
+      readBufferSize: 4096
+      writeBufferSize: 4096
+      maxMessageSize: 1048576
+      pingPeriod: 30
+      pongWait: 60
+  
+  # JWT authentication configuration
+  auth:
+    required: false  # Auth required per route
+    providers:
+      - jwt
+    
+    jwt:
+      enabled: true
+      issuer: "https://auth.example.com"
+      audience: "api.example.com"
+      signingMethod: "RS256"
+      # For RS256, provide public key or JWKS endpoint
+      jwksEndpoint: "https://auth.example.com/.well-known/jwks.json"
+      jwksCacheDuration: 3600  # Cache JWKS for 1 hour
+      
+      # Alternatively, for HS256, provide secret
+      # signingMethod: "HS256"
+      # secret: "your-secret-key"
+      
+      # Token extraction
+      headerName: "Authorization"
+      cookieName: ""  # Optional: extract from cookie
+      
+      # Claims mapping
+      claimsMapping:
+        subject: "sub"
+        type: "type"
+        scopes: "scope"
+  
+  registry:
+    type: static
+    static:
+      services:
+        - name: realtime-service
+          instances:
+            - id: realtime-1
+              address: "127.0.0.1"
+              port: 3001
+              health: healthy
+        
+        - name: ws-service
+          instances:
+            - id: ws-1
+              address: "127.0.0.1"
+              port: 3002
+              health: healthy
+  
+  router:
+    rules:
+      # SSE endpoint with JWT authentication
+      # Tokens are validated periodically during the connection
+      - id: sse-events
+        path: /events/*
+        serviceName: realtime-service
+        loadBalance: sticky  # Use sticky sessions for SSE
+        timeout: 300         # 5 minutes timeout
+        auth:
+          required: true     # JWT required for this route
+          scopes:
+            - "events:read"
+      
+      # WebSocket endpoint with JWT authentication
+      # Tokens are validated periodically during the connection
+      - id: ws-chat
+        path: /ws/chat/*
+        serviceName: ws-service
+        loadBalance: sticky  # Use sticky sessions for WebSocket
+        timeout: 300         # 5 minutes timeout
+        auth:
+          required: true     # JWT required for this route
+          scopes:
+            - "chat:access"
+      
+      # Public SSE endpoint (no auth)
+      - id: public-events
+        path: /public/events/*
+        serviceName: realtime-service
+        loadBalance: round_robin
+        timeout: 300
+        # No auth required
+      
+      # Regular HTTP API with JWT
+      - id: api
+        path: /api/*
+        serviceName: realtime-service
+        loadBalance: round_robin
+        timeout: 30
+        auth:
+          required: true
+          scopes:
+            - "api:read"
+
+# Notes:
+# 1. JWT tokens are validated when SSE/WebSocket connections are established
+# 2. For tokens with expiration, validation occurs periodically during the connection
+# 3. When a token expires, the connection is gracefully closed
+# 4. Clients receive an "authentication expired" error before disconnection
+# 5. For tokens without expiration, no periodic validation occurs

@@ -1,0 +1,161 @@
+# Rate Limiting Example Configuration
+# This example demonstrates per-route rate limiting with memory storage (default)
+# For distributed rate limiting with Redis, see ratelimit-global.yaml
+
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+      readTimeout: 30
+      writeTimeout: 30
+    
+    # SSE support with rate limiting
+    sse:
+      enabled: true
+      writeTimeout: 60
+      keepaliveTimeout: 30
+    
+    # WebSocket support with rate limiting
+    websocket:
+      enabled: true
+      host: "0.0.0.0"
+      port: 8081
+      readTimeout: 60
+      writeTimeout: 60
+      handshakeTimeout: 10
+      maxMessageSize: 1048576  # 1MB
+      checkOrigin: true
+      allowedOrigins: ["*"]
+  
+  backend:
+    http:
+      maxIdleConns: 100
+      maxIdleConnsPerHost: 10
+      idleConnTimeout: 90
+      keepAlive: true
+      keepAliveTimeout: 30
+      dialTimeout: 10
+      responseHeaderTimeout: 10
+    
+    sse:
+      connectTimeout: 10
+      readTimeout: 60
+      bufferSize: 4096
+    
+    websocket:
+      handshakeTimeout: 10
+      readTimeout: 60
+      writeTimeout: 60
+      maxMessageSize: 1048576  # 1MB
+      maxConnections: 100
+  
+  registry:
+    type: static
+    static:
+      services:
+        - name: api-service
+          instances:
+            - id: api-1
+              address: "127.0.0.1"
+              port: 3001
+              health: healthy
+        
+        - name: public-service
+          instances:
+            - id: public-1
+              address: "127.0.0.1"
+              port: 3002
+              health: healthy
+        
+        - name: admin-service
+          instances:
+            - id: admin-1
+              address: "127.0.0.1"
+              port: 3003
+              health: healthy
+  
+  # Optional: Configure rate limit storage (defaults to memory if not specified)
+  # rateLimitStorage:
+  #   default: "memory"
+  #   stores:
+  #     memory:
+  #       type: "memory"
+  
+  router:
+    rules:
+      # Public API with generous rate limiting
+      - id: public-api
+        path: /api/public/*
+        serviceName: public-service
+        loadBalance: round_robin
+        timeout: 10
+        rateLimit: 100        # 100 requests per second
+        rateLimitBurst: 200   # Allow burst up to 200
+      
+      # Private API with moderate rate limiting
+      - id: private-api
+        path: /api/v1/*
+        serviceName: api-service
+        loadBalance: round_robin
+        timeout: 10
+        authRequired: true
+        authType: jwt
+        rateLimit: 50         # 50 requests per second
+        rateLimitBurst: 100   # Allow burst up to 100
+      
+      # Admin API with strict rate limiting
+      - id: admin-api
+        path: /admin/*
+        serviceName: admin-service
+        loadBalance: round_robin
+        timeout: 30
+        authRequired: true
+        authType: jwt
+        rateLimit: 10         # 10 requests per second
+        rateLimitBurst: 20    # Allow burst up to 20
+      
+      # SSE endpoint with rate limiting
+      - id: events-stream
+        path: /events/*
+        serviceName: api-service
+        loadBalance: round_robin
+        timeout: 300          # 5 minutes for SSE
+        rateLimit: 5          # 5 new connections per second
+        rateLimitBurst: 10
+      
+      # WebSocket endpoint with rate limiting
+      - id: websocket-api
+        path: /ws/*
+        serviceName: api-service
+        loadBalance: sticky_session
+        sessionAffinity:
+          enabled: true
+          ttl: 3600           # 1 hour
+          source: cookie
+          cookieName: "gateway-session"
+        timeout: 0            # No timeout for WebSocket
+        rateLimit: 3          # 3 new connections per second
+        rateLimitBurst: 5
+      
+      # No rate limiting on health endpoints
+      - id: health-check
+        path: /health
+        serviceName: api-service
+        loadBalance: round_robin
+        timeout: 5
+  
+  # Optional: JWT authentication for protected routes
+  auth:
+    required: false           # Not globally required
+    providers: ["jwt"]
+    skipPaths: ["/api/public/*", "/health", "/events/*"]
+    jwt:
+      enabled: true
+      issuer: "https://auth.example.com"
+      audience: ["gateway-api"]
+      signingMethod: "RS256"
+      publicKey: |
+        -----BEGIN PUBLIC KEY-----
+        MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1234...
+        -----END PUBLIC KEY-----

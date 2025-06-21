@@ -1,0 +1,169 @@
+gateway:
+  # Frontend configuration
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+      readTimeout: 30
+      writeTimeout: 30
+
+  # Backend configuration
+  backend:
+    http:
+      maxIdleConns: 100
+      maxIdleConnsPerHost: 10
+      idleConnTimeout: 90
+      keepAlive: true
+      keepAliveTimeout: 30
+      dialTimeout: 10
+      responseHeaderTimeout: 10
+
+  # Redis configuration for distributed rate limiting
+  redis:
+    host: "localhost"
+    port: 6379
+    password: ""  # Set your Redis password if needed
+    db: 0
+    
+    # Connection pool settings
+    maxActive: 100
+    maxIdle: 10
+    idleTimeout: 300      # 5 minutes
+    connectTimeout: 10
+    readTimeout: 5
+    writeTimeout: 5
+    
+    # Uncomment for Redis cluster
+    # cluster: true
+    # clusterNodes:
+    #   - "localhost:7000"
+    #   - "localhost:7001"
+    #   - "localhost:7002"
+    
+    # Uncomment for Redis sentinel
+    # sentinel: true
+    # masterName: "mymaster"
+    # sentinelNodes:
+    #   - "localhost:26379"
+    #   - "localhost:26380"
+    
+    # TLS configuration (optional)
+    # tls:
+    #   enabled: true
+    #   insecureSkipVerify: false
+    #   certFile: "/path/to/client.crt"
+    #   keyFile: "/path/to/client.key"
+    #   caFile: "/path/to/ca.crt"
+
+  # Service registry
+  registry:
+    type: static
+    static:
+      services:
+        - name: api-service
+          instances:
+            - id: api-1
+              address: "127.0.0.1"
+              port: 3000
+              health: healthy
+        - name: admin-service
+          instances:
+            - id: admin-1
+              address: "127.0.0.1"
+              port: 3001
+              health: healthy
+
+  # Routing configuration with rate limiting
+  router:
+    rules:
+      # Public API with rate limiting
+      - id: public-api
+        path: /api/v1/*
+        serviceName: api-service
+        loadBalance: round_robin
+        timeout: 10
+        # Rate limiting configuration
+        rateLimit: 100            # 100 requests per second
+        rateLimitBurst: 200       # Allow burst up to 200
+        
+      # More restrictive rate limit for specific endpoints
+      - id: search-api
+        path: /api/v1/search
+        serviceName: api-service
+        loadBalance: round_robin
+        timeout: 5
+        rateLimit: 10             # Only 10 searches per second
+        rateLimitBurst: 20        # Burst up to 20
+        
+      # Admin API with higher limits
+      - id: admin-api
+        path: /admin/*
+        serviceName: admin-service
+        loadBalance: round_robin
+        timeout: 30
+        authRequired: true
+        authType: jwt
+        rateLimit: 1000           # 1000 requests per second for admin
+        rateLimitBurst: 2000
+        
+      # Webhook endpoint with very high limits
+      - id: webhook
+        path: /webhook/*
+        serviceName: api-service
+        loadBalance: round_robin
+        timeout: 5
+        rateLimit: 5000           # 5000 requests per second
+        rateLimitBurst: 10000
+        
+      # No rate limit for health checks
+      - id: health
+        path: /health
+        serviceName: api-service
+        loadBalance: round_robin
+        timeout: 2
+        # No rateLimit specified - unlimited
+
+  # Authentication configuration (optional)
+  auth:
+    jwt:
+      enabled: true
+      issuer: "https://auth.example.com"
+      audience: ["gateway-api"]
+      signingMethod: "RS256"
+      jwksEndpoint: "https://auth.example.com/.well-known/jwks.json"
+      jwksCacheDuration: 3600
+      subjectClaim: "sub"
+      scopeClaim: "scope"
+
+  # Health check configuration
+  health:
+    enabled: true
+    healthPath: "/health"
+    readyPath: "/ready"
+    livePath: "/live"
+
+  # Metrics configuration
+  metrics:
+    enabled: true
+    path: "/metrics"
+
+# Rate Limiting Notes:
+# 
+# With Redis configured, rate limiting becomes distributed across all gateway instances.
+# This means:
+# - All gateway instances share the same rate limit counters
+# - Clients cannot bypass limits by hitting different gateway instances
+# - Rate limit state survives gateway restarts (within Redis TTL)
+# 
+# Without Redis, each gateway instance maintains its own rate limit counters in memory.
+# 
+# Rate Limiting Algorithm:
+# - Uses sliding window counter algorithm in Redis
+# - Each request is tracked with nanosecond precision
+# - Old requests outside the 1-second window are automatically removed
+# - Burst capacity allows temporary spikes above the base rate
+# 
+# Performance:
+# - Redis operations are pipelined for efficiency
+# - Automatic fallback to in-memory limiting if Redis is unavailable
+# - Minimal latency impact (typically < 1ms with local Redis)

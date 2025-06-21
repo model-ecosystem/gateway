@@ -1,16 +1,22 @@
 package websocket
 
 import (
+	"context"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"gateway/internal/core"
+	"gateway/pkg/errors"
 )
 
 // conn wraps gorilla/websocket.Conn to implement core.WebSocketConn
 type conn struct {
-	ws     *websocket.Conn
-	remote string
+	ws           *websocket.Conn
+	remote       string
+	ctx          context.Context
+	disconnected bool
+	mu           sync.RWMutex
 }
 
 // newConn creates a new WebSocket connection wrapper
@@ -18,13 +24,39 @@ func newConn(ws *websocket.Conn, remoteAddr string) *conn {
 	return &conn{
 		ws:     ws,
 		remote: remoteAddr,
+		ctx:    context.Background(),
+	}
+}
+
+// newConnWithContext creates a new WebSocket connection wrapper with context
+func newConnWithContext(ws *websocket.Conn, remoteAddr string, ctx context.Context) *conn {
+	return &conn{
+		ws:     ws,
+		remote: remoteAddr,
+		ctx:    ctx,
 	}
 }
 
 // ReadMessage reads a message from the connection
 func (c *conn) ReadMessage() (*core.WebSocketMessage, error) {
+	// Check if context is done (client disconnected)
+	select {
+	case <-c.ctx.Done():
+		c.markDisconnected()
+		return nil, errors.NewError(errors.ErrorTypeInternal, "client disconnected")
+	default:
+	}
+
+	c.mu.RLock()
+	if c.disconnected {
+		c.mu.RUnlock()
+		return nil, errors.NewError(errors.ErrorTypeInternal, "connection is disconnected")
+	}
+	c.mu.RUnlock()
+
 	msgType, data, err := c.ws.ReadMessage()
 	if err != nil {
+		c.handleError(err)
 		return nil, err
 	}
 
@@ -36,11 +68,32 @@ func (c *conn) ReadMessage() (*core.WebSocketMessage, error) {
 
 // WriteMessage writes a message to the connection
 func (c *conn) WriteMessage(msg *core.WebSocketMessage) error {
-	return c.ws.WriteMessage(mapMessageTypeReverse(msg.Type), msg.Data)
+	// Check if context is done (client disconnected)
+	select {
+	case <-c.ctx.Done():
+		c.markDisconnected()
+		return errors.NewError(errors.ErrorTypeInternal, "client disconnected")
+	default:
+	}
+
+	c.mu.RLock()
+	if c.disconnected {
+		c.mu.RUnlock()
+		return errors.NewError(errors.ErrorTypeInternal, "connection is disconnected")
+	}
+	c.mu.RUnlock()
+
+	err := c.ws.WriteMessage(mapMessageTypeReverse(msg.Type), msg.Data)
+	if err != nil {
+		c.handleError(err)
+		return err
+	}
+	return nil
 }
 
 // Close closes the connection
 func (c *conn) Close() error {
+	c.markDisconnected()
 	return c.ws.Close()
 }
 
@@ -110,6 +163,30 @@ func mapMessageTypeReverse(t core.WebSocketMessageType) int {
 		return websocket.PongMessage
 	default:
 		return websocket.TextMessage
+	}
+}
+
+// IsDisconnected returns true if the connection is disconnected
+func (c *conn) IsDisconnected() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.disconnected
+}
+
+// markDisconnected marks the connection as disconnected
+func (c *conn) markDisconnected() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.disconnected = true
+}
+
+// handleError handles connection errors
+func (c *conn) handleError(err error) {
+	if err != nil {
+		// Check for disconnect errors
+		if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure, websocket.CloseNormalClosure) {
+			c.markDisconnected()
+		}
 	}
 }
 

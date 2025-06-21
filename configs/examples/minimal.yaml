@@ -1,0 +1,52 @@
+# Minimal gateway configuration demonstrating convention over configuration
+# Most settings use sensible defaults
+
+gateway:
+  # Only required configuration: services and routes
+  registry:
+    type: static
+    static:
+      services:
+        - name: my-service
+          instances:
+            - id: instance-1
+              address: "127.0.0.1"
+              port: 3000
+              health: healthy
+  
+  router:
+    rules:
+      - id: my-route
+        path: /api/*
+        serviceName: my-service
+        # Everything else uses defaults:
+        # - loadBalance: round_robin
+        # - timeout: 30 seconds
+        # - No rate limiting
+        # - No authentication
+        # - No special headers
+
+# Default values automatically applied:
+# 
+# Frontend HTTP:
+# - Host: 0.0.0.0
+# - Port: 8080
+# - Read timeout: 30s
+# - Write timeout: 30s
+# 
+# Backend HTTP:
+# - Connection pooling enabled
+# - Keep-alive enabled
+# - Reasonable timeouts
+# 
+# Rate Limiting:
+# - Memory storage by default
+# - No external dependencies
+# 
+# Other features:
+# - SSE: disabled
+# - WebSocket: disabled
+# - TLS: disabled
+# - Authentication: disabled
+# - Metrics: disabled
+# - Health checks: disabled

@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"gateway/internal/core"
@@ -94,16 +95,27 @@ func (a *Adapter) Start(ctx context.Context) error {
 		},
 	}
 	
-	a.logger.Info("starting server", "addr", addr)
+	// Create listener to detect bind errors early
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("failed to bind to %s: %w", addr, err)
+	}
 	
-	go func() {
-		var err error
-		if a.config.TLS != nil && a.config.TLS.Enabled {
-			a.logger.Info("starting TLS server", "cert", a.config.TLS.CertFile)
-			err = a.server.ListenAndServeTLS(a.config.TLS.CertFile, a.config.TLS.KeyFile)
-		} else {
-			err = a.server.ListenAndServe()
+	// If TLS is enabled, wrap the listener
+	if a.config.TLS != nil && a.config.TLS.Enabled {
+		if a.config.TLSConfig == nil {
+			listener.Close()
+			return fmt.Errorf("TLS enabled but no TLS configuration provided")
 		}
+		a.logger.Info("starting TLS server", "addr", addr, "cert", a.config.TLS.CertFile)
+		listener = tls.NewListener(listener, a.config.TLSConfig)
+	} else {
+		a.logger.Info("starting server", "addr", addr)
+	}
+	
+	// Start server in goroutine
+	go func() {
+		err := a.server.Serve(listener)
 		if err != http.ErrServerClosed {
 			a.logger.Error("server error", "error", err)
 		}
@@ -124,6 +136,9 @@ func (a *Adapter) Stop(ctx context.Context) error {
 
 // ServeHTTP implements http.Handler
 func (a *Adapter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Increment request counter
+	a.reqNum.Add(1)
+	
 	// Handle health check endpoints first (no request ID needed)
 	if a.healthHandler != nil {
 		switch r.URL.Path {

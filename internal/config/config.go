@@ -13,16 +13,18 @@ type Config struct {
 
 // Gateway configuration
 type Gateway struct {
-	Frontend       Frontend        `yaml:"frontend"`
-	Backend        Backend         `yaml:"backend"`
-	Registry       Registry        `yaml:"registry"`
-	Router         Router          `yaml:"router"`
-	Auth           *Auth           `yaml:"auth,omitempty"`
-	Health         *Health         `yaml:"health,omitempty"`
-	Metrics        *Metrics        `yaml:"metrics,omitempty"`
-	CircuitBreaker *CircuitBreaker `yaml:"circuitBreaker,omitempty"`
-	Retry          *Retry          `yaml:"retry,omitempty"`
-	CORS           *CORS           `yaml:"cors,omitempty"`
+	Frontend         Frontend          `yaml:"frontend"`
+	Backend          Backend           `yaml:"backend"`
+	Registry         Registry          `yaml:"registry"`
+	Router           Router            `yaml:"router"`
+	Auth             *Auth             `yaml:"auth,omitempty"`
+	Health           *Health           `yaml:"health,omitempty"`
+	Metrics          *Metrics          `yaml:"metrics,omitempty"`
+	CircuitBreaker   *CircuitBreaker   `yaml:"circuitBreaker,omitempty"`
+	Retry            *Retry            `yaml:"retry,omitempty"`
+	CORS             *CORS             `yaml:"cors,omitempty"`
+	Redis            *Redis            `yaml:"redis,omitempty"`
+	RateLimitStorage *RateLimitStorage `yaml:"rateLimitStorage,omitempty"`
 }
 
 // Frontend configuration
@@ -107,6 +109,7 @@ type BackendTLS struct {
 
 // WebSocket adapter configuration
 type WebSocket struct {
+	Enabled              bool   `yaml:"enabled"`
 	Host                 string `yaml:"host"`
 	Port                 int    `yaml:"port"`
 	ReadTimeout          int    `yaml:"readTimeout"`
@@ -124,6 +127,9 @@ type WebSocket struct {
 	PongWait             int    `yaml:"pongWait"`
 	PingPeriod           int    `yaml:"pingPeriod"`
 	CloseGracePeriod     int    `yaml:"closeGracePeriod"`
+	// Token validation for long-lived connections
+	TokenValidation      bool   `yaml:"tokenValidation"`    // Enable token validation
+	TokenCheckInterval   int    `yaml:"tokenCheckInterval"` // Check interval in seconds (default: 60)
 }
 
 // WebSocketBackend configuration
@@ -157,9 +163,12 @@ type WebSocketBackend struct {
 
 // SSE adapter configuration
 type SSE struct {
-	Enabled          bool `yaml:"enabled"`
-	WriteTimeout     int  `yaml:"writeTimeout"`
-	KeepaliveTimeout int  `yaml:"keepaliveTimeout"`
+	Enabled            bool `yaml:"enabled"`
+	WriteTimeout       int  `yaml:"writeTimeout"`
+	KeepaliveTimeout   int  `yaml:"keepaliveTimeout"`
+	// Token validation for long-lived connections
+	TokenValidation    bool `yaml:"tokenValidation"`    // Enable token validation
+	TokenCheckInterval int  `yaml:"tokenCheckInterval"` // Check interval in seconds (default: 60)
 }
 
 // SSEBackend configuration
@@ -241,9 +250,10 @@ type RouteRule struct {
 	AuthRequired bool   `yaml:"authRequired"`
 	AuthType     string `yaml:"authType"`
 	// Rate limiting
-	RateLimit           int `yaml:"rateLimit"`
-	RateLimitBurst      int `yaml:"rateLimitBurst"`
-	RateLimitExpiration int `yaml:"rateLimitExpiration"`
+	RateLimit           int    `yaml:"rateLimit"`
+	RateLimitBurst      int    `yaml:"rateLimitBurst"`
+	RateLimitExpiration int    `yaml:"rateLimitExpiration"`
+	RateLimitStorage    string `yaml:"rateLimitStorage"` // Storage name to use
 	// gRPC configuration
 	GRPC                *GRPCConfig `yaml:"grpc,omitempty"`
 }
@@ -437,4 +447,57 @@ type GRPCConfig struct {
 	EnableTranscoding bool `yaml:"enableTranscoding"`
 	// TranscodingRules defines custom transcoding rules
 	TranscodingRules map[string]string `yaml:"transcodingRules"`
+}
+
+// Redis configuration
+type Redis struct {
+	// Connection settings
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	Password string `yaml:"password"`
+	DB       int    `yaml:"db"`
+	
+	// Connection pool settings
+	MaxActive       int `yaml:"maxActive"`       // Maximum number of active connections
+	MaxIdle         int `yaml:"maxIdle"`         // Maximum number of idle connections
+	IdleTimeout     int `yaml:"idleTimeout"`     // Idle timeout in seconds
+	ConnectTimeout  int `yaml:"connectTimeout"`  // Connection timeout in seconds
+	ReadTimeout     int `yaml:"readTimeout"`     // Read timeout in seconds
+	WriteTimeout    int `yaml:"writeTimeout"`    // Write timeout in seconds
+	
+	// TLS settings
+	TLS *RedisTLS `yaml:"tls,omitempty"`
+	
+	// Cluster settings
+	Cluster        bool     `yaml:"cluster"`
+	ClusterNodes   []string `yaml:"clusterNodes"`
+	
+	// Sentinel settings
+	Sentinel       bool     `yaml:"sentinel"`
+	MasterName     string   `yaml:"masterName"`
+	SentinelNodes  []string `yaml:"sentinelNodes"`
+}
+
+// RedisTLS configuration
+type RedisTLS struct {
+	Enabled            bool   `yaml:"enabled"`
+	InsecureSkipVerify bool   `yaml:"insecureSkipVerify"`
+	CertFile           string `yaml:"certFile"`
+	KeyFile            string `yaml:"keyFile"`
+	CAFile             string `yaml:"caFile"`
+}
+
+// RateLimitStorage defines available rate limit storage backends
+type RateLimitStorage struct {
+	// Default storage to use if not specified in route
+	Default string                        `yaml:"default"`
+	// Available storage configurations
+	Stores  map[string]*RateLimitStore    `yaml:"stores"`
+}
+
+// RateLimitStore defines a single rate limit storage configuration
+type RateLimitStore struct {
+	Type   string  `yaml:"type"`   // "memory" or "redis"
+	Redis  *Redis  `yaml:"redis,omitempty"`
+	// Memory storage doesn't need configuration
 }

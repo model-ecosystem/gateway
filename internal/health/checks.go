@@ -77,16 +77,35 @@ func MemoryCheck(maxUsagePercent float64) Check {
 // CustomCheck allows creating custom health checks
 func CustomCheck(name string, checkFunc func() error) Check {
 	return func(ctx context.Context) error {
-		// Run the check with context awareness
+		// Create a channel for the result
 		done := make(chan error, 1)
+		
+		// Run the check in a goroutine that respects context cancellation
 		go func() {
-			done <- checkFunc()
+			// Check if context is already cancelled
+			select {
+			case <-ctx.Done():
+				done <- ctx.Err()
+				return
+			default:
+			}
+			
+			// Run the check
+			err := checkFunc()
+			
+			// Try to send result, but don't block if context was cancelled
+			select {
+			case done <- err:
+			case <-ctx.Done():
+			}
 		}()
 
+		// Wait for either the result or context cancellation
 		select {
 		case err := <-done:
 			return err
 		case <-ctx.Done():
+			// Context cancelled - the goroutine will exit on its own
 			return fmt.Errorf("check timeout: %w", ctx.Err())
 		}
 	}

@@ -154,8 +154,9 @@ func TestBuilder_Build(t *testing.T) {
 							Port: 8080,
 						},
 						WebSocket: &config.WebSocket{
-							Host: "localhost",
-							Port: 8081,
+							Enabled: true,
+							Host:    "localhost",
+							Port:    8081,
 						},
 					},
 					Backend: config.Backend{
@@ -292,7 +293,7 @@ func TestBuilder_Build(t *testing.T) {
 					},
 				},
 			},
-			wantError: false,
+			wantError: true, // Expected to fail without valid cert files
 		},
 		{
 			name: "empty registry config",
@@ -439,6 +440,7 @@ func TestBuilder_createWebSocketAdapter(t *testing.T) {
 					Port: 8080,
 				},
 				WebSocket: &config.WebSocket{
+					Enabled:           true,
 					Host:              "localhost",
 					Port:              8081,
 					ReadBufferSize:    1024,

@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.23-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 # Install dependencies
 RUN apk add --no-cache git make
@@ -20,7 +20,7 @@ COPY . .
 RUN make build
 
 # Runtime stage
-FROM alpine:latest
+FROM alpine:3.20
 
 # Install ca-certificates for HTTPS
 RUN apk add --no-cache ca-certificates

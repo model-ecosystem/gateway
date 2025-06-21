@@ -192,26 +192,53 @@ func (c *Connection) Proxy(ctx context.Context, clientConn core.WebSocketConn) e
 	// Error channel to coordinate goroutines
 	errChan := make(chan error, 2)
 	
+	// Track message counts
+	var clientToBackend, backendToClient int
+	
 	// Client to backend
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
+				c.logger.Debug("Client to backend proxy cancelled",
+					"instance", c.instance.ID,
+					"messages", clientToBackend,
+				)
 				errChan <- ctx.Err()
 				return
 			default:
 				msg, err := clientConn.ReadMessage()
 				if err != nil {
-					c.logger.Debug("Error reading from client", "error", err)
+					// Check if it's a normal disconnect
+					if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+						c.logger.Info("Client closed connection normally",
+							"instance", c.instance.ID,
+							"messages_sent", clientToBackend,
+						)
+					} else if err.Error() == "client disconnected" || err.Error() == "connection is disconnected" {
+						c.logger.Info("Client disconnected",
+							"instance", c.instance.ID,
+							"messages_sent", clientToBackend,
+						)
+					} else {
+						c.logger.Error("Error reading from client",
+							"error", err,
+							"instance", c.instance.ID,
+						)
+					}
 					errChan <- err
 					return
 				}
 
 				if err := c.WriteMessage(msg); err != nil {
-					c.logger.Debug("Error writing to backend", "error", err)
+					c.logger.Debug("Error writing to backend",
+						"error", err,
+						"instance", c.instance.ID,
+					)
 					errChan <- err
 					return
 				}
+				clientToBackend++
 			}
 		}
 	}()
@@ -221,21 +248,48 @@ func (c *Connection) Proxy(ctx context.Context, clientConn core.WebSocketConn) e
 		for {
 			select {
 			case <-ctx.Done():
+				c.logger.Debug("Backend to client proxy cancelled",
+					"instance", c.instance.ID,
+					"messages", backendToClient,
+				)
 				errChan <- ctx.Err()
 				return
 			default:
 				msg, err := c.ReadMessage()
 				if err != nil {
-					c.logger.Debug("Error reading from backend", "error", err)
+					// Check if it's a normal disconnect
+					if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+						c.logger.Info("Backend closed connection normally",
+							"instance", c.instance.ID,
+							"messages_sent", backendToClient,
+						)
+					} else {
+						c.logger.Error("Error reading from backend",
+							"error", err,
+							"instance", c.instance.ID,
+						)
+					}
 					errChan <- err
 					return
 				}
 
 				if err := clientConn.WriteMessage(msg); err != nil {
-					c.logger.Debug("Error writing to client", "error", err)
+					// Check if client disconnected
+					if err.Error() == "client disconnected" || err.Error() == "connection is disconnected" {
+						c.logger.Info("Client disconnected during proxy",
+							"instance", c.instance.ID,
+							"messages_sent", backendToClient,
+						)
+					} else {
+						c.logger.Debug("Error writing to client",
+							"error", err,
+							"instance", c.instance.ID,
+						)
+					}
 					errChan <- err
 					return
 				}
+				backendToClient++
 			}
 		}
 	}()
@@ -243,12 +297,27 @@ func (c *Connection) Proxy(ctx context.Context, clientConn core.WebSocketConn) e
 	// Wait for first error
 	err := <-errChan
 	
+	// Log final statistics
+	c.logger.Info("WebSocket proxy completed",
+		"instance", c.instance.ID,
+		"client_to_backend", clientToBackend,
+		"backend_to_client", backendToClient,
+		"error", err,
+	)
+	
+	// Send close frames to both sides
+	closeMsg := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "proxy ended")
+	c.conn.WriteControl(websocket.CloseMessage, closeMsg, time.Now().Add(time.Second))
+	
 	// Close both connections
 	c.Close()
 	clientConn.Close()
 	
-	// Check if it was a normal close
-	if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+	// Check if it was a normal close or expected disconnect
+	if err == nil || 
+		websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) ||
+		err.Error() == "client disconnected" || 
+		err.Error() == "connection is disconnected" {
 		return nil
 	}
 	

@@ -80,10 +80,20 @@ func (b *Builder) Build() (*Server, error) {
 		b.logger.Info("Retry enabled")
 	}
 	
+	// Apply base middleware (recovery, logging, auth)
 	baseHandler = factory.ApplyMiddleware(baseHandler, b.logger, authMiddleware)
+	
+	// Add rate limiting middleware after basic middleware but before business logic
+	if rateLimitMiddleware := factory.CreateRateLimitMiddleware(&b.config.Gateway.Router, &b.config.Gateway, b.logger); rateLimitMiddleware != nil {
+		baseHandler = rateLimitMiddleware(baseHandler)
+		b.logger.Info("Rate limiting enabled for configured routes")
+	}
 
 	// Create HTTP adapter
-	httpAdapter := factory.CreateHTTPAdapter(b.config.Gateway.Frontend.HTTP, baseHandler, b.logger)
+	httpAdapter, err := factory.CreateHTTPAdapter(b.config.Gateway.Frontend.HTTP, baseHandler, b.logger)
+	if err != nil {
+		return nil, fmt.Errorf("creating HTTP adapter: %w", err)
+	}
 
 	// Add health check support if enabled
 	if cfg := b.config.Gateway.Health; cfg != nil && cfg.Enabled {
@@ -125,7 +135,7 @@ func (b *Builder) Build() (*Server, error) {
 
 	// Create WebSocket adapter if enabled
 	var wsAdapter *wsAdapter.Adapter
-	if cfg := b.config.Gateway.Frontend.WebSocket; cfg != nil {
+	if cfg := b.config.Gateway.Frontend.WebSocket; cfg != nil && cfg.Enabled {
 		wsAdapter = b.createWebSocketAdapter(router, authMiddleware)
 	}
 
@@ -146,8 +156,14 @@ func (b *Builder) addSSESupport(
 ) {
 	sseConnector := factory.CreateSSEConnector(b.config.Gateway.Backend.SSE, httpClient, b.logger)
 	sseHandler := factory.CreateSSEHandler(router, sseConnector, b.logger)
+	
+	// Apply rate limiting if configured
+	if rateLimitMiddleware := factory.CreateRateLimitMiddleware(&b.config.Gateway.Router, &b.config.Gateway, b.logger); rateLimitMiddleware != nil {
+		sseHandler = rateLimitMiddleware(sseHandler)
+	}
+	
 	sseHandler = factory.ApplyMiddleware(sseHandler, b.logger, authMiddleware)
-	factory.CreateSSEAdapter(b.config.Gateway.Frontend.SSE, sseHandler, httpAdapter, b.logger)
+	factory.CreateSSEAdapter(b.config.Gateway.Frontend.SSE, sseHandler, httpAdapter, b.config.Gateway.Auth, b.logger)
 }
 
 // createWebSocketAdapter creates the WebSocket adapter
@@ -157,6 +173,12 @@ func (b *Builder) createWebSocketAdapter(
 ) *wsAdapter.Adapter {
 	wsConnector := factory.CreateWebSocketConnector(b.config.Gateway.Backend.WebSocket, b.logger)
 	wsHandler := factory.CreateWebSocketHandler(router, wsConnector, b.logger)
+	
+	// Apply rate limiting if configured
+	if rateLimitMiddleware := factory.CreateRateLimitMiddleware(&b.config.Gateway.Router, &b.config.Gateway, b.logger); rateLimitMiddleware != nil {
+		wsHandler = rateLimitMiddleware(wsHandler)
+	}
+	
 	wsHandler = factory.ApplyMiddleware(wsHandler, b.logger, authMiddleware)
-	return factory.CreateWebSocketAdapter(b.config.Gateway.Frontend.WebSocket, wsHandler, b.logger)
+	return factory.CreateWebSocketAdapter(b.config.Gateway.Frontend.WebSocket, wsHandler, b.config.Gateway.Auth, b.logger)
 }

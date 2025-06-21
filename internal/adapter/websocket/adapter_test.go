@@ -510,3 +510,269 @@ func TestWsRequest(t *testing.T) {
 		t.Errorf("Expected protocol 'websocket', got %s", wsReq.Protocol())
 	}
 }
+
+// Mock token validator for testing
+type mockTokenValidator struct {
+	validateFunc func(ctx context.Context, connectionID string, token string, onExpired func()) error
+	stopCalled   map[string]bool
+	mu           sync.Mutex
+}
+
+func newMockTokenValidator() *mockTokenValidator {
+	return &mockTokenValidator{
+		stopCalled: make(map[string]bool),
+	}
+}
+
+func (m *mockTokenValidator) ValidateConnection(ctx context.Context, connectionID string, token string, onExpired func()) error {
+	if m.validateFunc != nil {
+		return m.validateFunc(ctx, connectionID, token, onExpired)
+	}
+	return nil
+}
+
+func (m *mockTokenValidator) StopValidation(connectionID string) {
+	m.mu.Lock()
+	m.stopCalled[connectionID] = true
+	m.mu.Unlock()
+}
+
+func TestAdapter_WithTokenValidator(t *testing.T) {
+	logger := slog.Default()
+	
+	t.Run("valid token", func(t *testing.T) {
+		validator := newMockTokenValidator()
+		validator.validateFunc = func(ctx context.Context, connectionID string, token string, onExpired func()) error {
+			if token != "valid-token" {
+				return fmt.Errorf("invalid token")
+			}
+			return nil
+		}
+		
+		handlerCalled := false
+		handler := func(ctx context.Context, req core.Request) (core.Response, error) {
+			handlerCalled = true
+			return &mockResponse{statusCode: http.StatusSwitchingProtocols}, nil
+		}
+		
+		adapter := NewAdapter(&Config{
+			Host: "127.0.0.1",
+			Port: 0,
+		}, handler, logger)
+		adapter.WithTokenValidator(validator)
+		
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		
+		err := adapter.Start(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		
+		// Create WebSocket connection with valid token
+		addr := adapter.listener.Addr().String()
+		headers := http.Header{}
+		headers.Set("Authorization", "Bearer valid-token")
+		
+		conn, _, err := websocket.DefaultDialer.Dial(fmt.Sprintf("ws://%s/test", addr), headers)
+		if err != nil {
+			t.Fatalf("Failed to connect with valid token: %v", err)
+		}
+		defer conn.Close()
+		
+		// Give handler time to be called
+		time.Sleep(50 * time.Millisecond)
+		
+		if !handlerCalled {
+			t.Error("Handler should have been called with valid token")
+		}
+	})
+	
+	t.Run("invalid token", func(t *testing.T) {
+		validator := newMockTokenValidator()
+		validator.validateFunc = func(ctx context.Context, connectionID string, token string, onExpired func()) error {
+			return fmt.Errorf("invalid token")
+		}
+		
+		handler := func(ctx context.Context, req core.Request) (core.Response, error) {
+			t.Error("Handler should not be called with invalid token")
+			return &mockResponse{statusCode: http.StatusSwitchingProtocols}, nil
+		}
+		
+		adapter := NewAdapter(&Config{
+			Host: "127.0.0.1",
+			Port: 0,
+		}, handler, logger)
+		adapter.WithTokenValidator(validator)
+		
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		
+		err := adapter.Start(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		
+		// Try to connect with invalid token
+		addr := adapter.listener.Addr().String()
+		headers := http.Header{}
+		headers.Set("Authorization", "Bearer invalid-token")
+		
+		conn, resp, err := websocket.DefaultDialer.Dial(fmt.Sprintf("ws://%s/test", addr), headers)
+		if err == nil {
+			conn.Close()
+			t.Error("Expected connection to fail with invalid token")
+		}
+		
+		// The connection should be rejected
+		if resp != nil && resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("Expected 401 status, got %d", resp.StatusCode)
+		}
+	})
+	
+	t.Run("no token with validator", func(t *testing.T) {
+		validator := newMockTokenValidator()
+		
+		handlerCalled := false
+		handler := func(ctx context.Context, req core.Request) (core.Response, error) {
+			handlerCalled = true
+			return &mockResponse{statusCode: http.StatusSwitchingProtocols}, nil
+		}
+		
+		adapter := NewAdapter(&Config{
+			Host: "127.0.0.1",
+			Port: 0,
+		}, handler, logger)
+		adapter.WithTokenValidator(validator)
+		
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		
+		err := adapter.Start(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		
+		// Connect without token
+		addr := adapter.listener.Addr().String()
+		conn, _, err := websocket.DefaultDialer.Dial(fmt.Sprintf("ws://%s/test", addr), nil)
+		if err != nil {
+			t.Fatalf("Failed to connect without token: %v", err)
+		}
+		defer conn.Close()
+		
+		// Give handler time to be called
+		time.Sleep(50 * time.Millisecond)
+		
+		if !handlerCalled {
+			t.Error("Handler should be called when no token is provided")
+		}
+	})
+	
+	t.Run("token expiration", func(t *testing.T) {
+		validator := newMockTokenValidator()
+		expiredCallbackCalled := false
+		
+		validator.validateFunc = func(ctx context.Context, connectionID string, token string, onExpired func()) error {
+			// Simulate token expiration after 100ms
+			go func() {
+				time.Sleep(100 * time.Millisecond)
+				expiredCallbackCalled = true
+				onExpired()
+			}()
+			return nil
+		}
+		
+		handler := func(ctx context.Context, req core.Request) (core.Response, error) {
+			// Keep connection open
+			<-ctx.Done()
+			return &mockResponse{statusCode: http.StatusSwitchingProtocols}, nil
+		}
+		
+		adapter := NewAdapter(&Config{
+			Host: "127.0.0.1",
+			Port: 0,
+		}, handler, logger)
+		adapter.WithTokenValidator(validator)
+		
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		
+		err := adapter.Start(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		
+		// Connect with token
+		addr := adapter.listener.Addr().String()
+		headers := http.Header{}
+		headers.Set("Authorization", "Bearer expiring-token")
+		
+		conn, _, err := websocket.DefaultDialer.Dial(fmt.Sprintf("ws://%s/test", addr), headers)
+		if err != nil {
+			t.Fatalf("Failed to connect: %v", err)
+		}
+		defer conn.Close()
+		
+		// Wait for token to expire
+		time.Sleep(150 * time.Millisecond)
+		
+		if !expiredCallbackCalled {
+			t.Error("Token expiration callback should have been called")
+		}
+		
+		// Connection should be closed
+		_, _, err = conn.ReadMessage()
+		if err == nil {
+			t.Error("Expected connection to be closed after token expiration")
+		}
+	})
+	
+	t.Run("stop validation cleanup", func(t *testing.T) {
+		validator := newMockTokenValidator()
+		
+		handler := func(ctx context.Context, req core.Request) (core.Response, error) {
+			return &mockResponse{statusCode: http.StatusSwitchingProtocols}, nil
+		}
+		
+		adapter := NewAdapter(&Config{
+			Host: "127.0.0.1",
+			Port: 0,
+		}, handler, logger)
+		adapter.WithTokenValidator(validator)
+		
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		
+		err := adapter.Start(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		
+		// Connect with token and specific request ID
+		addr := adapter.listener.Addr().String()
+		headers := http.Header{}
+		headers.Set("Authorization", "Bearer test-token")
+		headers.Set("X-Request-ID", "test-conn-456")
+		
+		conn, _, err := websocket.DefaultDialer.Dial(fmt.Sprintf("ws://%s/test", addr), headers)
+		if err != nil {
+			t.Fatalf("Failed to connect: %v", err)
+		}
+		
+		// Close connection
+		conn.Close()
+		
+		// Give cleanup time to run
+		time.Sleep(50 * time.Millisecond)
+		
+		// Check if StopValidation was called
+		validator.mu.Lock()
+		stopped := validator.stopCalled["test-conn-456"]
+		validator.mu.Unlock()
+		
+		if !stopped {
+			t.Error("StopValidation should be called when connection closes")
+		}
+	})
+}

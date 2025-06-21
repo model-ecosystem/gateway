@@ -1,18 +1,120 @@
 package ratelimit
 
 import (
+	"context"
 	"fmt"
-	"gateway/internal/core"
+	"net"
 	"sync"
 	"time"
+	
+	"gateway/internal/core"
+	"gateway/internal/storage"
+	"gateway/pkg/errors"
 )
 
-// RateLimiter defines the interface for rate limiting
-type RateLimiter interface {
-	Allow(key string) bool
+// Limiter defines the interface for rate limiting
+type Limiter interface {
+	// Allow checks if a request is allowed
+	Allow(ctx context.Context, key string) error
+	// AllowN checks if n requests are allowed
+	AllowN(ctx context.Context, key string, n int) error
+	// Wait blocks until a request is allowed
+	Wait(ctx context.Context, key string) error
+	// WaitN blocks until n requests are allowed
+	WaitN(ctx context.Context, key string, n int) error
+	// Limit returns the rate limit
+	Limit() int
+	// Burst returns the burst limit
+	Burst() int
+	// SetLimit updates the rate limit
+	SetLimit(limit int)
+	// SetBurst updates the burst limit
+	SetBurst(burst int)
 }
 
-// TokenBucket implements token bucket algorithm
+// StoreLimiter wraps a storage backend to implement the Limiter interface
+type StoreLimiter struct {
+	store  storage.LimiterStore
+	limit  int
+	burst  int
+	window time.Duration
+}
+
+// NewStoreLimiter creates a new limiter with the given storage backend
+func NewStoreLimiter(store storage.LimiterStore, limit, burst int) *StoreLimiter {
+	return &StoreLimiter{
+		store:  store,
+		limit:  limit,
+		burst:  burst,
+		window: time.Second, // 1 second window for rate limiting
+	}
+}
+
+// Allow checks if a request is allowed
+func (l *StoreLimiter) Allow(ctx context.Context, key string) error {
+	allowed, _, _, err := l.store.Allow(ctx, key, l.limit, l.burst, l.window)
+	if err != nil {
+		return fmt.Errorf("rate limit check failed: %w", err)
+	}
+	if !allowed {
+		return errors.NewError(
+			errors.ErrorTypeRateLimit,
+			"rate limit exceeded",
+		).WithDetail("key", key)
+	}
+	return nil
+}
+
+// AllowN checks if n requests are allowed
+func (l *StoreLimiter) AllowN(ctx context.Context, key string, n int) error {
+	allowed, _, _, err := l.store.AllowN(ctx, key, n, l.limit, l.burst, l.window)
+	if err != nil {
+		return fmt.Errorf("rate limit check failed: %w", err)
+	}
+	if !allowed {
+		return errors.NewError(
+			errors.ErrorTypeRateLimit,
+			"rate limit exceeded",
+		).WithDetail("key", key).WithDetail("requested", n)
+	}
+	return nil
+}
+
+// Wait blocks until a request is allowed
+func (l *StoreLimiter) Wait(ctx context.Context, key string) error {
+	// For storage-backed limiters, we don't support blocking wait
+	// Just check if allowed
+	return l.Allow(ctx, key)
+}
+
+// WaitN blocks until n requests are allowed
+func (l *StoreLimiter) WaitN(ctx context.Context, key string, n int) error {
+	// For storage-backed limiters, we don't support blocking wait
+	// Just check if allowed
+	return l.AllowN(ctx, key, n)
+}
+
+// Limit returns the rate limit
+func (l *StoreLimiter) Limit() int {
+	return l.limit
+}
+
+// Burst returns the burst limit
+func (l *StoreLimiter) Burst() int {
+	return l.burst
+}
+
+// SetLimit updates the rate limit
+func (l *StoreLimiter) SetLimit(limit int) {
+	l.limit = limit
+}
+
+// SetBurst updates the burst limit
+func (l *StoreLimiter) SetBurst(burst int) {
+	l.burst = burst
+}
+
+// TokenBucket implements token bucket algorithm (deprecated - use StoreLimiter with memory storage)
 type TokenBucket struct {
 	rate   int
 	burst  int
@@ -28,6 +130,7 @@ type bucket struct {
 }
 
 // NewTokenBucket creates a new token bucket rate limiter
+// Deprecated: Use NewStoreLimiter with memory storage instead
 func NewTokenBucket(rate, burst int) *TokenBucket {
 	tb := &TokenBucket{
 		rate:   rate,
@@ -109,7 +212,13 @@ type KeyFunc func(core.Request) string
 
 // ByIP rate limits by IP address
 func ByIP(req core.Request) string {
-	return req.RemoteAddr()
+	// Extract IP from remote address (remove port)
+	host, _, err := net.SplitHostPort(req.RemoteAddr())
+	if err != nil {
+		// If SplitHostPort fails, use the whole address
+		return req.RemoteAddr()
+	}
+	return host
 }
 
 // ByPath rate limits by request path
@@ -129,3 +238,118 @@ func min(a, b int) int {
 	}
 	return b
 }
+
+// TokenBucketLimiter wraps TokenBucket to implement Limiter interface
+type TokenBucketLimiter struct {
+	tb *TokenBucket
+	mu sync.RWMutex
+}
+
+// NewTokenBucketLimiter creates a new token bucket limiter
+func NewTokenBucketLimiter(rate, burst int) *TokenBucketLimiter {
+	return &TokenBucketLimiter{
+		tb: NewTokenBucket(rate, burst),
+	}
+}
+
+// Allow checks if a request is allowed
+func (l *TokenBucketLimiter) Allow(ctx context.Context, key string) error {
+	if !l.tb.Allow(key) {
+		return errors.NewError(errors.ErrorTypeRateLimit, "rate limit exceeded").
+			WithDetail("key", key)
+	}
+	return nil
+}
+
+// AllowN checks if n requests are allowed
+func (l *TokenBucketLimiter) AllowN(ctx context.Context, key string, n int) error {
+	// For simplicity, check each request individually
+	for i := 0; i < n; i++ {
+		if !l.tb.Allow(key) {
+			return errors.NewError(errors.ErrorTypeRateLimit, "rate limit exceeded").
+				WithDetail("key", key).
+				WithDetail("requested", n).
+				WithDetail("allowed", i)
+		}
+	}
+	return nil
+}
+
+// Wait blocks until a request is allowed
+func (l *TokenBucketLimiter) Wait(ctx context.Context, key string) error {
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			if l.tb.Allow(key) {
+				return nil
+			}
+		}
+	}
+}
+
+// WaitN blocks until n requests are allowed
+func (l *TokenBucketLimiter) WaitN(ctx context.Context, key string, n int) error {
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			// Try to get all tokens at once
+			allowed := 0
+			for i := 0; i < n; i++ {
+				if l.tb.Allow(key) {
+					allowed++
+				} else {
+					// Return tokens we took
+					for j := 0; j < allowed; j++ {
+						// Can't return tokens with current implementation
+						// This is a limitation of the simple token bucket
+					}
+					break
+				}
+			}
+			if allowed == n {
+				return nil
+			}
+		}
+	}
+}
+
+// Limit returns the rate limit
+func (l *TokenBucketLimiter) Limit() int {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.tb.rate
+}
+
+// Burst returns the burst limit
+func (l *TokenBucketLimiter) Burst() int {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.tb.burst
+}
+
+// SetLimit updates the rate limit
+func (l *TokenBucketLimiter) SetLimit(limit int) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.tb.rate = limit
+}
+
+// SetBurst updates the burst limit
+func (l *TokenBucketLimiter) SetBurst(burst int) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.tb.burst = burst
+}
+
+// Ensure TokenBucketLimiter implements Limiter
+var _ Limiter = (*TokenBucketLimiter)(nil)

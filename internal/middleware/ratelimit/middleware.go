@@ -2,48 +2,47 @@ package ratelimit
 
 import (
 	"context"
+	"strings"
+	
 	"gateway/internal/core"
 	"gateway/pkg/errors"
-	"log/slog"
 )
 
-// Config defines rate limit configuration
-type Config struct {
-	// Rate is requests per second
-	Rate int
-	// Burst is the maximum burst size
-	Burst int
-	// KeyFunc extracts the rate limit key from request
-	KeyFunc KeyFunc
-	// Logger for logging
-	Logger *slog.Logger
-}
-
-// Middleware creates a rate limiting middleware
+// Middleware creates rate limiting middleware with storage backend
 func Middleware(cfg *Config) core.Middleware {
 	if cfg.KeyFunc == nil {
 		cfg.KeyFunc = ByIP
 	}
 
-	limiter := NewTokenBucket(cfg.Rate, cfg.Burst)
+	// Create limiter with storage backend
+	limiter := NewStoreLimiter(cfg.Store, cfg.Rate, cfg.Burst)
 
 	return func(next core.Handler) core.Handler {
 		return func(ctx context.Context, req core.Request) (core.Response, error) {
 			key := cfg.KeyFunc(req)
 
-			if !limiter.Allow(key) {
+			// Use the limiter with storage backend
+			if err := limiter.Allow(ctx, key); err != nil {
 				if cfg.Logger != nil {
-					cfg.Logger.Warn("rate limit exceeded",
+					cfg.Logger.Warn("rate limit check",
 						"key", key,
 						"path", req.Path(),
 						"method", req.Method(),
+						"error", err,
 					)
 				}
 
+				// If it's already a rate limit error, return it
+				var rateLimitErr *errors.Error
+				if errors.As(err, &rateLimitErr) && rateLimitErr.Type == errors.ErrorTypeRateLimit {
+					return nil, err
+				}
+
+				// Otherwise, wrap it
 				return nil, errors.NewError(
 					errors.ErrorTypeRateLimit,
 					"rate limit exceeded",
-				).WithDetail("key", key)
+				).WithDetail("key", key).WithCause(err)
 			}
 
 			return next(ctx, req)
@@ -53,16 +52,17 @@ func Middleware(cfg *Config) core.Middleware {
 
 // PerRoute creates a rate limiter with per-route configuration
 func PerRoute(rules map[string]*Config) core.Middleware {
-	limiters := make(map[string]*TokenBucket)
+	// Create limiters for each route
+	limiters := make(map[string]*StoreLimiter)
 
 	for path, cfg := range rules {
-		limiters[path] = NewTokenBucket(cfg.Rate, cfg.Burst)
+		limiters[path] = NewStoreLimiter(cfg.Store, cfg.Rate, cfg.Burst)
 	}
 
 	return func(next core.Handler) core.Handler {
 		return func(ctx context.Context, req core.Request) (core.Response, error) {
 			// Find matching rule
-			var limiter *TokenBucket
+			var limiter *StoreLimiter
 			var cfg *Config
 
 			for path, rl := range rules {
@@ -85,19 +85,27 @@ func PerRoute(rules map[string]*Config) core.Middleware {
 			}
 
 			key := keyFunc(req)
-			if !limiter.Allow(key) {
+			if err := limiter.Allow(ctx, key); err != nil {
 				if cfg.Logger != nil {
-					cfg.Logger.Warn("rate limit exceeded",
+					cfg.Logger.Warn("rate limit check",
 						"key", key,
 						"path", req.Path(),
 						"method", req.Method(),
+						"error", err,
 					)
 				}
 
+				// If it's already a rate limit error, return it
+				var rateLimitErr *errors.Error
+				if errors.As(err, &rateLimitErr) && rateLimitErr.Type == errors.ErrorTypeRateLimit {
+					return nil, err
+				}
+
+				// Otherwise, wrap it
 				return nil, errors.NewError(
 					errors.ErrorTypeRateLimit,
 					"rate limit exceeded",
-				).WithDetail("key", key).WithDetail("path", req.Path())
+				).WithDetail("key", key).WithDetail("path", req.Path()).WithCause(err)
 			}
 
 			return next(ctx, req)
@@ -106,8 +114,17 @@ func PerRoute(rules map[string]*Config) core.Middleware {
 }
 
 // matchPath checks if a request path matches a pattern
-func matchPath(reqPath, pattern string) bool {
-	// Simple prefix matching for now
-	// TODO: Support wildcard patterns
-	return len(reqPath) >= len(pattern) && reqPath[:len(pattern)] == pattern
+func matchPath(requestPath, pattern string) bool {
+	// Exact match
+	if requestPath == pattern {
+		return true
+	}
+	
+	// Wildcard match
+	if strings.HasSuffix(pattern, "*") {
+		prefix := strings.TrimSuffix(pattern, "*")
+		return strings.HasPrefix(requestPath, prefix)
+	}
+	
+	return false
 }

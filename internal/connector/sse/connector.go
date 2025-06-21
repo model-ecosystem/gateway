@@ -165,6 +165,7 @@ func (c *Connection) Proxy(ctx context.Context, clientWriter core.SSEWriter) err
 			c.logger.Debug("SSE proxy context cancelled",
 				"instance", c.instance.ID,
 				"events", eventCount,
+				"reason", ctx.Err(),
 			)
 			return errors.NewError(errors.ErrorTypeTimeout, "SSE proxy context cancelled").WithCause(ctx.Err())
 			
@@ -172,12 +173,29 @@ func (c *Connection) Proxy(ctx context.Context, clientWriter core.SSEWriter) err
 			event, err := c.ReadEvent()
 			if err != nil {
 				if err == io.EOF {
-					c.logger.Debug("SSE backend closed connection",
+					c.logger.Info("SSE backend closed connection gracefully",
 						"instance", c.instance.ID,
 						"events", eventCount,
 					)
+					// Send a final event to notify client of backend closure
+					_ = clientWriter.WriteEvent(&core.SSEEvent{
+						Type: "close",
+						Data: "backend connection closed",
+					})
 					return nil
 				}
+				
+				// Check for network errors indicating disconnection
+				if netErr, ok := err.(net.Error); ok {
+					c.logger.Info("SSE backend network error",
+						"instance", c.instance.ID,
+						"events", eventCount,
+						"error", netErr,
+						"timeout", netErr.Timeout(),
+						"temporary", netErr.Temporary(),
+					)
+				}
+				
 				// Check if it's already a structured error
 				if _, ok := err.(*errors.Error); ok {
 					c.logger.Error("Error reading SSE event",
@@ -195,6 +213,17 @@ func (c *Connection) Proxy(ctx context.Context, clientWriter core.SSEWriter) err
 
 			// Forward event to client
 			if err := clientWriter.WriteEvent(event); err != nil {
+				// Check if client disconnected
+				errStr := err.Error()
+				if errStr == "client disconnected" || errStr == "SSE writer is closed or disconnected" {
+					c.logger.Info("Client disconnected during SSE proxy",
+						"instance", c.instance.ID,
+						"events", eventCount,
+					)
+					// This is expected when client disconnects, not an error
+					return nil
+				}
+				
 				c.logger.Debug("Error writing to client",
 					"error", err,
 					"instance", c.instance.ID,

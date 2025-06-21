@@ -3,6 +3,7 @@ package sse
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -41,6 +42,25 @@ func (m *mockHandler) Handle(ctx context.Context, req core.Request) (core.Respon
 	}
 	
 	return m.resp, m.err
+}
+
+// Mock response for testing
+type mockResponse struct {
+	status  int
+	headers map[string][]string
+	body    string
+}
+
+func (m *mockResponse) StatusCode() int {
+	return m.status
+}
+
+func (m *mockResponse) Headers() map[string][]string {
+	return m.headers
+}
+
+func (m *mockResponse) Body() io.ReadCloser {
+	return io.NopCloser(strings.NewReader(m.body))
 }
 
 func TestDefaultConfig(t *testing.T) {
@@ -231,21 +251,19 @@ func TestAdapter_HandleSSE(t *testing.T) {
 func TestAdapter_HandleSSE_Keepalive(t *testing.T) {
 	logger := slog.Default()
 	
-	// Create a context we can cancel
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	
+	handlerCompleted := make(chan bool)
 	handler := func(ctx context.Context, req core.Request) (core.Response, error) {
 		// Keep connection open for keepalive test
-		<-ctx.Done()
-		return nil, ctx.Err()
+		time.Sleep(1500 * time.Millisecond) // Wait to see at least one keepalive
+		handlerCompleted <- true
+		return nil, nil
 	}
 	
 	adapter := NewAdapter(&Config{
 		KeepaliveTimeout: 1, // 1 second for faster test
 	}, handler, logger)
 	
-	req := httptest.NewRequest("GET", "/test", nil).WithContext(ctx)
+	req := httptest.NewRequest("GET", "/test", nil)
 	req.Header.Set("Accept", "text/event-stream")
 	
 	w := httptest.NewRecorder()
@@ -257,17 +275,18 @@ func TestAdapter_HandleSSE_Keepalive(t *testing.T) {
 		done <- true
 	}()
 	
-	// Wait longer than keepalive timeout to capture keepalive
-	time.Sleep(1200 * time.Millisecond)
+	// Wait for handler to complete
+	select {
+	case <-handlerCompleted:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Handler did not complete in time")
+	}
 	
-	// Cancel context to stop handler
-	cancel()
-	
-	// Wait for completion
+	// Wait for adapter to finish
 	select {
 	case <-done:
 	case <-time.After(time.Second):
-		t.Error("Handler did not complete in time")
+		t.Error("Adapter did not complete in time")
 	}
 	
 	// Check that we got keepalive comments
@@ -371,7 +390,7 @@ func TestSSERequest(t *testing.T) {
 	
 	// Create mock writer
 	w := httptest.NewRecorder()
-	writer := newWriter(w)
+	writer := newWriter(w, context.Background())
 	
 	// Create SSE request
 	req := &sseRequest{
@@ -457,4 +476,210 @@ func TestAdapter_Concurrent(t *testing.T) {
 		t.Errorf("Expected %d connections, got %d", numConnections, connCount)
 	}
 	mu.Unlock()
+}
+
+// Mock token validator for testing
+type mockTokenValidator struct {
+	validateFunc func(ctx context.Context, connectionID string, token string, onExpired func()) error
+	stopCalled   map[string]bool
+	mu           sync.Mutex
+}
+
+func newMockTokenValidator() *mockTokenValidator {
+	return &mockTokenValidator{
+		stopCalled: make(map[string]bool),
+	}
+}
+
+func (m *mockTokenValidator) ValidateConnection(ctx context.Context, connectionID string, token string, onExpired func()) error {
+	if m.validateFunc != nil {
+		return m.validateFunc(ctx, connectionID, token, onExpired)
+	}
+	return nil
+}
+
+func (m *mockTokenValidator) StopValidation(connectionID string) {
+	m.mu.Lock()
+	m.stopCalled[connectionID] = true
+	m.mu.Unlock()
+}
+
+func TestAdapter_HandleSSE_WithTokenValidator(t *testing.T) {
+	logger := slog.Default()
+	handler := &mockHandler{resp: &mockResponse{status: http.StatusOK}}
+	
+	t.Run("valid token", func(t *testing.T) {
+		adapter := NewAdapter(DefaultConfig(), handler.Handle, logger)
+		
+		validator := newMockTokenValidator()
+		validator.validateFunc = func(ctx context.Context, connectionID string, token string, onExpired func()) error {
+			if token != "valid-token" {
+				return fmt.Errorf("invalid token")
+			}
+			return nil
+		}
+		adapter.WithTokenValidator(validator)
+		
+		req := httptest.NewRequest("GET", "/test", nil)
+		req.Header.Set("Accept", "text/event-stream")
+		req.Header.Set("Authorization", "Bearer valid-token")
+		
+		w := httptest.NewRecorder()
+		adapter.HandleSSE(w, req)
+		
+		// Should succeed
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d", w.Code)
+		}
+		
+		// Verify validator was called
+		if !handler.called {
+			t.Error("Handler should have been called for valid token")
+		}
+	})
+	
+	t.Run("invalid token", func(t *testing.T) {
+		adapter := NewAdapter(DefaultConfig(), handler.Handle, logger)
+		
+		validator := newMockTokenValidator()
+		validator.validateFunc = func(ctx context.Context, connectionID string, token string, onExpired func()) error {
+			return fmt.Errorf("invalid token")
+		}
+		adapter.WithTokenValidator(validator)
+		
+		req := httptest.NewRequest("GET", "/test", nil)
+		req.Header.Set("Accept", "text/event-stream")
+		req.Header.Set("Authorization", "Bearer invalid-token")
+		
+		w := httptest.NewRecorder()
+		adapter.HandleSSE(w, req)
+		
+		// Should fail with 401
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("Expected status 401, got %d", w.Code)
+		}
+		
+		// Handler should not be called
+		handler.called = false // Reset
+	})
+	
+	t.Run("no token with validator", func(t *testing.T) {
+		adapter := NewAdapter(DefaultConfig(), handler.Handle, logger)
+		validator := newMockTokenValidator()
+		adapter.WithTokenValidator(validator)
+		
+		req := httptest.NewRequest("GET", "/test", nil)
+		req.Header.Set("Accept", "text/event-stream")
+		// No Authorization header
+		
+		w := httptest.NewRecorder()
+		adapter.HandleSSE(w, req)
+		
+		// Should succeed - validator only checks if token is present
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d", w.Code)
+		}
+	})
+	
+	t.Run("token expiration callback", func(t *testing.T) {
+		adapter := NewAdapter(DefaultConfig(), handler.Handle, logger)
+		
+		expiredCalled := make(chan bool, 1)
+		validator := newMockTokenValidator()
+		validator.validateFunc = func(ctx context.Context, connectionID string, token string, onExpired func()) error {
+			// Simulate token expiration after validation
+			go func() {
+				time.Sleep(50 * time.Millisecond)
+				onExpired()
+			}()
+			return nil
+		}
+		adapter.WithTokenValidator(validator)
+		
+		req := httptest.NewRequest("GET", "/test", nil)
+		req.Header.Set("Accept", "text/event-stream")
+		req.Header.Set("Authorization", "Bearer expiring-token")
+		
+		// Need to handle SSE in a way that we can observe the expiration
+		w := &testResponseWriter{
+			ResponseRecorder: httptest.NewRecorder(),
+			closeNotify:      make(chan bool, 1),
+		}
+		
+		// Set up handler to detect when error event is written
+		handler := func(ctx context.Context, req core.Request) (core.Response, error) {
+			if _, ok := req.(*sseRequest); ok {
+				// Monitor for writes
+				go func() {
+					// Wait for expiration - give time for the expiration to propagate
+					time.Sleep(150 * time.Millisecond)
+					// Check if connection was closed
+					select {
+					case <-ctx.Done():
+						expiredCalled <- true
+					default:
+						expiredCalled <- false
+					}
+				}()
+			}
+			// Keep connection open
+			<-ctx.Done()
+			return nil, nil
+		}
+		
+		adapter = NewAdapter(DefaultConfig(), handler, logger)
+		adapter.WithTokenValidator(validator)
+		
+		// Handle SSE in goroutine
+		go adapter.HandleSSE(w, req)
+		
+		// Wait for expiration or timeout
+		select {
+		case expired := <-expiredCalled:
+			if !expired {
+				t.Error("Expected connection to be closed on token expiration")
+			}
+		case <-time.After(300 * time.Millisecond):
+			t.Error("Timeout waiting for expiration callback")
+		}
+	})
+	
+	t.Run("stop validation on disconnect", func(t *testing.T) {
+		adapter := NewAdapter(DefaultConfig(), handler.Handle, logger)
+		
+		validator := newMockTokenValidator()
+		adapter.WithTokenValidator(validator)
+		
+		req := httptest.NewRequest("GET", "/test", nil)
+		req.Header.Set("Accept", "text/event-stream")
+		req.Header.Set("Authorization", "Bearer test-token")
+		req.Header.Set("X-Request-ID", "test-conn-123")
+		
+		w := httptest.NewRecorder()
+		
+		// Handle SSE - it will complete immediately with our mock handler
+		adapter.HandleSSE(w, req)
+		
+		// Give deferred cleanup time to run
+		time.Sleep(10 * time.Millisecond)
+		
+		// Verify StopValidation was called
+		validator.mu.Lock()
+		stopped := validator.stopCalled["test-conn-123"]
+		validator.mu.Unlock()
+		
+		if !stopped {
+			t.Error("Expected StopValidation to be called on connection close")
+		}
+	})
+}
+
+// testResponseWriter is a ResponseWriter that supports CloseNotify
+type testResponseWriter struct {
+	*httptest.ResponseRecorder
+	closeNotify chan bool
+}
+
+func (w *testResponseWriter) CloseNotify() <-chan bool {
+	return w.closeNotify
 }

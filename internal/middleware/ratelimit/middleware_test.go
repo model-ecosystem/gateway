@@ -3,6 +3,8 @@ package ratelimit
 import (
 	"context"
 	"gateway/internal/core"
+	"gateway/internal/storage"
+	"gateway/internal/storage/memory"
 	"gateway/pkg/errors"
 	"io"
 	"testing"
@@ -94,9 +96,11 @@ func TestTokenBucket(t *testing.T) {
 
 func TestMiddleware(t *testing.T) {
 	t.Run("allows requests within rate", func(t *testing.T) {
+		store := memory.NewStore(storage.DefaultConfig())
 		cfg := &Config{
 			Rate:  10,
 			Burst: 10,
+			Store: store,
 		}
 
 		mw := Middleware(cfg)
@@ -139,10 +143,12 @@ func TestMiddleware(t *testing.T) {
 	})
 
 	t.Run("uses custom key function", func(t *testing.T) {
+		store := memory.NewStore(storage.DefaultConfig())
 		cfg := &Config{
 			Rate:    10,
 			Burst:   1,
 			KeyFunc: ByPath,
+			Store:   store,
 		}
 
 		mw := Middleware(cfg)
@@ -182,16 +188,20 @@ func TestMiddleware(t *testing.T) {
 	})
 
 	t.Run("per route configuration", func(t *testing.T) {
+		store1 := memory.NewStore(storage.DefaultConfig())
+		store2 := memory.NewStore(storage.DefaultConfig())
 		rules := map[string]*Config{
-			"/api/": {
+			"/api/*": {
 				Rate:    5,
 				Burst:   5,
 				KeyFunc: ByIP,
+				Store:   store1,
 			},
-			"/public/": {
+			"/public/*": {
 				Rate:    100,
 				Burst:   100,
 				KeyFunc: ByIP,
+				Store:   store2,
 			},
 		}
 
@@ -226,6 +236,7 @@ func TestMiddleware(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected rate limit error for API")
 		}
+		t.Logf("Got expected error: %v", err)
 
 		// Public should still allow requests
 		for i := 0; i < 10; i++ {

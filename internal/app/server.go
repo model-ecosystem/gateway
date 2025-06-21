@@ -28,48 +28,60 @@ func NewServer(cfg *config.Config, logger *slog.Logger) (*Server, error) {
 
 // Start starts the gateway server
 func (s *Server) Start(ctx context.Context) error {
-	var wg sync.WaitGroup
+	// Channel to collect startup errors
 	errCh := make(chan error, 2)
-
+	// Channel to signal successful starts
+	startedCh := make(chan struct{}, 2)
+	expectedStarts := 1 // HTTP adapter always starts
+	
 	// Start HTTP adapter
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
 		s.logger.Info("Starting HTTP server",
 			"host", s.config.Gateway.Frontend.HTTP.Host,
 			"port", s.config.Gateway.Frontend.HTTP.Port,
 		)
 		if err := s.httpAdapter.Start(ctx); err != nil {
 			errCh <- fmt.Errorf("HTTP server: %w", err)
+		} else {
+			startedCh <- struct{}{}
 		}
 	}()
 
 	// Start WebSocket adapter if enabled
 	if s.wsAdapter != nil {
-		wg.Add(1)
+		expectedStarts++
 		go func() {
-			defer wg.Done()
 			s.logger.Info("Starting WebSocket server",
 				"host", s.config.Gateway.Frontend.WebSocket.Host,
 				"port", s.config.Gateway.Frontend.WebSocket.Port,
 			)
 			if err := s.wsAdapter.Start(ctx); err != nil {
 				errCh <- fmt.Errorf("WebSocket server: %w", err)
+			} else {
+				startedCh <- struct{}{}
 			}
 		}()
 	}
 
-	// Give servers time to start
-	time.Sleep(100 * time.Millisecond)
-
-	// Check for startup errors
-	select {
-	case err := <-errCh:
-		return err
-	default:
-		s.logger.Info("Gateway started successfully")
-		return nil
+	// Wait for all adapters to start or fail
+	started := 0
+	for started < expectedStarts {
+		select {
+		case err := <-errCh:
+			// One of the adapters failed to start
+			return err
+		case <-startedCh:
+			started++
+		case <-time.After(5 * time.Second):
+			// Timeout waiting for adapters to start
+			return fmt.Errorf("timeout waiting for adapters to start")
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
+
+	s.logger.Info("Gateway started successfully")
+	return nil
 }
 
 // Stop stops the gateway server

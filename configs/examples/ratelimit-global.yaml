@@ -1,0 +1,113 @@
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+      readTimeout: 30
+      writeTimeout: 30
+  
+  backend:
+    http:
+      maxIdleConns: 100
+      maxIdleConnsPerHost: 10
+      idleConnTimeout: 90
+      keepAlive: true
+      keepAliveTimeout: 30
+      dialTimeout: 10
+      responseHeaderTimeout: 10
+  
+  # Global rate limit storage configuration
+  rateLimitStorage:
+    default: "memory"  # Default storage for routes that don't specify
+    stores:
+      # Memory storage (default, no external dependencies)
+      memory:
+        type: "memory"
+      
+      # Redis storage for distributed rate limiting
+      redis-primary:
+        type: "redis"
+        redis:
+          host: "localhost"
+          port: 6379
+          db: 0
+          password: ""
+          maxRetries: 3
+          minRetryBackoff: 8
+          maxRetryBackoff: 512
+          dialTimeout: 5
+          readTimeout: 3
+          writeTimeout: 3
+          poolSize: 10
+          minIdleConns: 5
+          idleTimeout: 300
+      
+      # Alternative Redis instance
+      redis-secondary:
+        type: "redis"
+        redis:
+          host: "redis-secondary"
+          port: 6379
+          db: 1
+  
+  registry:
+    type: static
+    static:
+      services:
+        - name: api-service
+          instances:
+            - id: api-1
+              address: "127.0.0.1"
+              port: 3001
+              health: healthy
+            - id: api-2
+              address: "127.0.0.1"
+              port: 3002
+              health: healthy
+        
+        - name: public-service
+          instances:
+            - id: public-1
+              address: "127.0.0.1"
+              port: 4001
+              health: healthy
+  
+  router:
+    rules:
+      # Public API with memory-based rate limiting
+      - id: public-api
+        path: /api/public/*
+        serviceName: public-service
+        loadBalance: round_robin
+        timeout: 10
+        rateLimit: 100        # 100 requests per second
+        rateLimitBurst: 200   # Allow burst up to 200
+        # Uses default storage (memory)
+      
+      # User API with Redis-based rate limiting
+      - id: user-api
+        path: /api/users/*
+        serviceName: api-service
+        loadBalance: round_robin
+        timeout: 10
+        rateLimit: 50         # 50 requests per second per IP
+        rateLimitBurst: 100   # Allow burst up to 100
+        rateLimitStorage: "redis-primary"  # Use Redis for distributed limiting
+      
+      # Admin API with stricter limits using secondary Redis
+      - id: admin-api
+        path: /api/admin/*
+        serviceName: api-service
+        loadBalance: round_robin
+        timeout: 30
+        rateLimit: 10         # 10 requests per second
+        rateLimitBurst: 20    # Allow burst up to 20
+        rateLimitStorage: "redis-secondary"
+      
+      # Webhook endpoint with no rate limiting
+      - id: webhook
+        path: /webhook/*
+        serviceName: api-service
+        loadBalance: round_robin
+        timeout: 60
+        # No rateLimit specified - no rate limiting applied

@@ -169,8 +169,7 @@ gateway/
 ├── examples/                # Example applications
 ├── deployments/             # Deployment configurations
 ├── scripts/                 # Build and development scripts
-├── docs/                    # Documentation
-└── discussion/              # Design documents and reports
+└── scripts/                 # Build and development scripts
 ```
 
 ## 🛡️ Error Handling
@@ -231,30 +230,17 @@ go test ./test/integration/...
 - `github.com/golang-jwt/jwt/v5` - JWT authentication
 - Standard library for core functionality
 
-## 📚 Documentation
+## Configuration Examples
 
-### Getting Started
-- [Quick Start Guide](docs/guides/getting-started.md)
-- [Configuration Reference](docs/guides/configuration.md)
-- [Code Reading Guide](docs/development/code-reading-guide.md) 🆕
-
-### Feature Guides
-- [Authentication Setup](docs/guides/authentication.md)
-- [TLS/mTLS Configuration](docs/guides/tls-setup.md)
-- [Rate Limiting](docs/guides/rate-limiting.md)
-- [WebSocket Support](docs/guides/websocket.md)
-- [SSE Support](docs/guides/sse.md)
-- [gRPC Support](docs/guides/grpc.md)
-
-### Architecture & Design
-- [Architecture Overview](docs/architecture/overview.md) 🆕
-- [Request Flow](docs/architecture/request-flow.md) 🆕
-- [Design Decisions](discussion/design/overview.md)
-
-### Operations
-- [Deployment Guide](docs/guides/deployment.md)
-- [Monitoring & Metrics](docs/operations/monitoring.md)
-- [Performance Tuning](docs/operations/performance.md)
+See `/configs/examples/` for working configuration examples:
+- Basic HTTP routing
+- Authentication (JWT, API Key)
+- TLS/mTLS setup
+- WebSocket configuration
+- SSE configuration
+- Docker discovery
+- gRPC backend and transcoding
+- Session affinity
 
 ## License
 
