@@ -1,0 +1,67 @@
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+      readTimeout: 30
+      writeTimeout: 30
+
+  backend:
+    http:
+      maxIdleConns: 100
+      maxIdleConnsPerHost: 10
+      idleConnTimeout: 90
+
+  registry:
+    type: static
+    static:
+      services:
+        - name: backend-service
+          instances:
+            - id: backend-1
+              address: "localhost"
+              port: 3000
+              health: healthy
+        - name: flaky-service
+          instances:
+            - id: flaky-1
+              address: "localhost"
+              port: 3001
+              health: healthy
+
+  router:
+    rules:
+      - id: backend-route
+        path: /api/*
+        serviceName: backend-service
+        loadBalance: round_robin
+      - id: flaky-route
+        path: /flaky/*
+        serviceName: flaky-service
+        loadBalance: round_robin
+
+  # Retry configuration
+  retry:
+    enabled: true
+    default:
+      maxAttempts: 3         # Retry up to 3 times
+      initialDelay: 100      # Start with 100ms delay
+      maxDelay: 5000         # Cap at 5 seconds
+      multiplier: 2.0        # Double delay each time
+      jitter: true           # Add randomness to prevent thundering herd
+    
+    # Route-specific configurations
+    routes:
+      flaky-route:
+        maxAttempts: 5       # More retries for flaky service
+        initialDelay: 200    # Start with longer delay
+        maxDelay: 10000      # Allow up to 10 seconds
+        multiplier: 1.5      # Less aggressive backoff
+    
+    # Service-specific configurations
+    services:
+      backend-service:
+        maxAttempts: 2       # Fewer retries for stable service
+        initialDelay: 50     # Quick retry
+        maxDelay: 1000       # Cap at 1 second
+        jitter: false        # No jitter needed

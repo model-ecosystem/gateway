@@ -1,0 +1,82 @@
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+      readTimeout: 30
+      writeTimeout: 30
+    websocket:
+      enabled: true
+      host: "0.0.0.0"
+      port: 8081
+      readTimeout: 60
+      writeTimeout: 60
+      handshakeTimeout: 10
+      readBufferSize: 4096
+      writeBufferSize: 4096
+      checkOrigin: true
+      allowedOrigins: ["*"]
+    sse:
+      enabled: true
+      writeTimeout: 60
+      keepaliveTimeout: 30
+  backend:
+    http:
+      maxIdleConns: 100
+      maxIdleConnsPerHost: 10
+      idleConnTimeout: 90
+      keepAlive: true
+      keepAliveTimeout: 30
+      dialTimeout: 10
+      responseHeaderTimeout: 10
+    websocket:
+      dialTimeout: 10
+      handshakeTimeout: 10
+    sse:
+      dialTimeout: 10
+      responseTimeout: 0
+  registry:
+    type: docker
+    docker:
+      # host: "unix:///var/run/docker.sock"  # Default
+      labelPrefix: "gateway"
+      network: ""  # Use default network
+      refreshInterval: 10  # Refresh every 10 seconds
+  router:
+    rules:
+      # HTTP API routes
+      - id: httpbin-get
+        path: /get
+        methods: ["GET"]
+        serviceName: httpbin-service
+        loadBalance: round_robin
+        timeout: 30
+        
+      - id: httpbin-post
+        path: /post
+        methods: ["POST"]
+        serviceName: httpbin-service
+        loadBalance: round_robin
+        timeout: 30
+        
+      - id: httpbin-all
+        path: /*
+        serviceName: httpbin-service
+        loadBalance: round_robin
+        timeout: 30
+        
+      # WebSocket routes
+      - id: websocket-echo
+        path: /ws/echo
+        methods: ["WEBSOCKET", "GET"]
+        serviceName: websocket-service
+        loadBalance: round_robin
+        timeout: 0
+        
+      # SSE routes
+      - id: sse-events
+        path: /events
+        methods: ["GET", "SSE"]
+        serviceName: sse-service
+        loadBalance: round_robin
+        timeout: 0

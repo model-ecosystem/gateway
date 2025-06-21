@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"gateway/internal/core"
 	"gateway/pkg/errors"
+	"gateway/pkg/routing"
 	"net/http"
-	"strings"
 	"sync"
 )
 
@@ -37,31 +37,12 @@ func (r *Router) AddRule(rule core.RouteRule) error {
 	// Check duplicate ID
 	for _, existing := range r.routes {
 		if existing.ID == rule.ID {
-			return fmt.Errorf("duplicate rule id: %s", rule.ID)
+			return errors.NewError(errors.ErrorTypeBadRequest, fmt.Sprintf("duplicate rule id: %s", rule.ID))
 		}
 	}
 
 	// Convert path pattern to ServeMux format
-	pattern := rule.Path
-	
-	// Replace :param with {param} for ServeMux compatibility
-	if strings.Contains(pattern, ":") {
-		parts := strings.Split(pattern, "/")
-		for i, part := range parts {
-			if strings.HasPrefix(part, ":") {
-				parts[i] = "{" + part[1:] + "}"
-			}
-		}
-		pattern = strings.Join(parts, "/")
-	}
-	
-	// Handle wildcard patterns
-	// ServeMux uses {$} for matching rest of path, not *
-	if strings.HasSuffix(pattern, "/*") {
-		pattern = strings.TrimSuffix(pattern, "/*") + "/{path...}"
-	} else if strings.HasSuffix(pattern, "*") {
-		pattern = strings.TrimSuffix(pattern, "*") + "{path...}"
-	}
+	pattern := routing.ConvertToServeMuxPattern(rule.Path)
 
 	// Register routes for each method (or all methods if none specified)
 	methods := rule.Methods
@@ -91,7 +72,14 @@ func (r *Router) AddRule(rule core.RouteRule) error {
 
 	// Create load balancer if needed
 	if _, ok := r.balancers[rule.ServiceName]; !ok {
-		r.balancers[rule.ServiceName] = NewRoundRobinBalancer()
+		switch rule.LoadBalance {
+		case core.LoadBalanceStickySession:
+			// Use sticky session with round-robin fallback
+			fallback := NewRoundRobinBalancer()
+			r.balancers[rule.ServiceName] = NewStickySessionBalancer(fallback, rule.SessionAffinity)
+		default:
+			r.balancers[rule.ServiceName] = NewRoundRobinBalancer()
+		}
 	}
 
 	return nil
@@ -153,7 +141,15 @@ func (r *Router) Route(ctx context.Context, req core.Request) (*core.RouteResult
 
 	// Select instance
 	balancer := r.balancers[matched.ServiceName]
-	instance, err := balancer.Select(instances)
+	
+	// Check if balancer supports request-based selection
+	var instance *core.ServiceInstance
+	if requestAwareBalancer, ok := balancer.(core.RequestAwareLoadBalancer); ok {
+		instance, err = requestAwareBalancer.SelectForRequest(req, instances)
+	} else {
+		instance, err = balancer.Select(instances)
+	}
+	
 	if err != nil {
 		return nil, err
 	}

@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  # Gateway with Docker service discovery
+  gateway:
+    build: .
+    ports:
+      - "8080:8080"     # HTTP
+      - "8081:8081"     # WebSocket  
+    volumes:
+      - ./configs/gateway-docker.yaml:/app/configs/gateway.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # Docker socket for discovery
+    environment:
+      - LOG_LEVEL=debug
+    depends_on:
+      - backend1
+      - backend2
+    networks:
+      - gateway-net
+
+  # Example backend service 1
+  backend1:
+    image: kennethreitz/httpbin
+    labels:
+      # Gateway service discovery labels
+      - "gateway.enable=true"
+      - "gateway.service=httpbin-service"
+      - "gateway.port=80"
+      - "gateway.meta.version=v1"
+      - "gateway.meta.region=us-east"
+    networks:
+      - gateway-net
+
+  # Example backend service 2
+  backend2:
+    image: kennethreitz/httpbin
+    labels:
+      - "gateway.enable=true"
+      - "gateway.service=httpbin-service"
+      - "gateway.port=80"
+      - "gateway.meta.version=v1"
+      - "gateway.meta.region=us-west"
+    networks:
+      - gateway-net
+
+  # Example WebSocket service
+  websocket-echo:
+    build:
+      context: .
+      dockerfile: test/servers/websocket/Dockerfile
+    labels:
+      - "gateway.enable=true"
+      - "gateway.service=websocket-service"
+      - "gateway.port=3001"
+      - "gateway.scheme=ws"
+    networks:
+      - gateway-net
+
+  # Example SSE service
+  sse-events:
+    build:
+      context: .
+      dockerfile: test/servers/sse/Dockerfile
+    labels:
+      - "gateway.enable=true"
+      - "gateway.service=sse-service"
+      - "gateway.port=3010"
+    networks:
+      - gateway-net
+
+networks:
+  gateway-net:
+    driver: bridge

@@ -1,0 +1,74 @@
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+      readTimeout: 30
+      writeTimeout: 30
+
+  backend:
+    http:
+      maxIdleConns: 100
+      maxIdleConnsPerHost: 10
+      idleConnTimeout: 90
+
+  registry:
+    type: static
+    static:
+      services:
+        - name: backend-service
+          instances:
+            - id: backend-1
+              address: "localhost"
+              port: 3000
+              health: healthy
+
+  router:
+    rules:
+      - id: backend-route
+        path: /api/*
+        serviceName: backend-service
+        loadBalance: round_robin
+
+  # CORS configuration
+  cors:
+    enabled: true
+    # Allow specific origins (use ["*"] for all origins)
+    allowedOrigins:
+      - "https://example.com"
+      - "https://app.example.com"
+      - "http://localhost:3000"
+    
+    # Allowed HTTP methods
+    allowedMethods:
+      - GET
+      - POST
+      - PUT
+      - PATCH
+      - DELETE
+      - OPTIONS
+    
+    # Allowed request headers
+    allowedHeaders:
+      - Content-Type
+      - Authorization
+      - X-Request-ID
+      - X-API-Key
+    
+    # Headers exposed to the browser
+    exposedHeaders:
+      - X-Request-ID
+      - X-Rate-Limit-Remaining
+      - X-Rate-Limit-Reset
+    
+    # Allow credentials (cookies, authorization headers)
+    allowCredentials: true
+    
+    # Cache preflight requests for 1 hour
+    maxAge: 3600
+    
+    # Don't pass OPTIONS requests to backend
+    optionsPassthrough: false
+    
+    # Status code for successful OPTIONS requests
+    optionsSuccessStatus: 204

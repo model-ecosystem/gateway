@@ -1,0 +1,184 @@
+# gRPC Backend Configuration Example
+# This example shows how to configure the gateway for gRPC backend services
+#
+# IMPORTANT: Current Implementation Status
+# ========================================
+# The gRPC connector currently operates in JSON pass-through mode:
+# - HTTP requests with JSON bodies are forwarded to gRPC services without protobuf conversion
+# - gRPC services must accept JSON-encoded messages (using gRPC-JSON transcoding)
+# - Response from gRPC services are expected to be in JSON format
+#
+# This works with:
+# - gRPC services that have JSON codec support enabled
+# - Services using grpc-gateway or similar JSON transcoding
+# - Services that handle JSON serialization internally
+#
+# Full protobuf support with automatic JSON-to-protobuf conversion is planned
+# for a future release and will include:
+# - Loading protobuf descriptors
+# - Automatic message type detection and conversion
+# - Support for streaming RPCs
+# - Field validation based on proto schemas
+
+gateway:
+  # Frontend configuration (HTTP/HTTPS)
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+      readTimeout: 30
+      writeTimeout: 30
+  
+  # gRPC backend configuration
+  backend:
+    grpc:
+      # Connection pool settings
+      maxConcurrentStreams: 100
+      
+      # Window sizes for flow control (bytes)
+      initialConnWindowSize: 65536    # 64KB connection window
+      initialWindowSize: 65536        # 64KB per-stream window
+      
+      # Keepalive settings
+      keepAliveTime: 30s              # Send ping every 30 seconds
+      keepAliveTimeout: 10s           # Wait 10 seconds for ping ack
+      
+      # TLS configuration
+      tls: false                      # Enable for secure gRPC connections
+      
+      # Retry configuration
+      maxRetryAttempts: 3
+      retryTimeout: 5s
+  
+  # Service registry
+  registry:
+    type: static
+    static:
+      services:
+        # Basic gRPC service
+        - name: user-service
+          type: grpc
+          instances:
+            - id: user-grpc-1
+              address: "localhost"
+              port: 50051
+              health: healthy
+        
+        # gRPC service cluster for load balancing
+        - name: product-service
+          type: grpc
+          instances:
+            - id: product-grpc-1
+              address: "10.0.1.10"
+              port: 50051
+              health: healthy
+            - id: product-grpc-2
+              address: "10.0.1.11"
+              port: 50051
+              health: healthy
+            - id: product-grpc-3
+              address: "10.0.1.12"
+              port: 50051
+              health: healthy
+        
+        # Mixed protocol service (HTTP and gRPC endpoints)
+        - name: api-service
+          instances:
+            - id: api-1
+              address: "api.internal"
+              port: 8080      # HTTP port
+              metadata:
+                grpcPort: "50051"  # gRPC port
+              health: healthy
+  
+  # Routing rules
+  router:
+    rules:
+      # 1. Direct gRPC path routing
+      # Expects paths like: /package.Service/Method
+      - id: grpc-direct
+        path: /grpc/*
+        serviceName: user-service
+        backend: grpc
+        timeout: 30
+      
+      # 2. RESTful API with gRPC backend (transcoding)
+      - id: user-api
+        path: /api/users/*
+        serviceName: user-service
+        backend: grpc
+        timeout: 10
+        transcoding:
+          # Map URL paths to gRPC services
+          pathMappings:
+            /api/users: user.v1.UserService
+          # Map HTTP methods and paths to gRPC methods
+          methodMappings:
+            "GET /api/users": ListUsers
+            "GET /api/users/{id}": GetUser
+            "POST /api/users": CreateUser
+            "PUT /api/users/{id}": UpdateUser
+            "DELETE /api/users/{id}": DeleteUser
+      
+      # 3. gRPC with load balancing
+      - id: product-api
+        path: /api/products/*
+        serviceName: product-service
+        backend: grpc
+        loadBalance: round_robin
+        timeout: 15
+        transcoding:
+          pathMappings:
+            /api/products: product.v1.ProductService
+          methodMappings:
+            "GET /api/products": ListProducts
+            "GET /api/products/{id}": GetProduct
+            "POST /api/products": CreateProduct
+            "GET /api/products/search": SearchProducts
+      
+      # 4. gRPC with authentication
+      - id: admin-grpc
+        path: /admin/grpc/*
+        serviceName: user-service
+        backend: grpc
+        auth:
+          type: jwt
+          jwt:
+            algorithm: RS256
+            publicKey: |
+              -----BEGIN PUBLIC KEY-----
+              MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...
+              -----END PUBLIC KEY-----
+      
+      # 5. gRPC with rate limiting
+      - id: public-api
+        path: /public/api/*
+        serviceName: api-service
+        backend: grpc
+        rateLimit:
+          requestsPerSecond: 100
+          burst: 200
+        transcoding:
+          pathMappings:
+            /public/api: public.v1.PublicService
+          methodMappings:
+            "GET /public/api/status": GetStatus
+            "GET /public/api/info": GetInfo
+
+# Example requests:
+
+# 1. Direct gRPC path:
+# curl -X POST http://localhost:8080/grpc/user.v1.UserService/GetUser \
+#   -H "Content-Type: application/json" \
+#   -d '{"id": "123"}'
+
+# 2. RESTful transcoding:
+# curl http://localhost:8080/api/users/123
+# curl -X POST http://localhost:8080/api/users \
+#   -H "Content-Type: application/json" \
+#   -d '{"name": "John Doe", "email": "john@example.com"}'
+
+# 3. With authentication:
+# curl http://localhost:8080/admin/grpc/user.v1.UserService/ListUsers \
+#   -H "Authorization: Bearer <jwt-token>" \
+#   -H "Content-Type: application/json"

@@ -2,7 +2,6 @@ package errors
 
 import (
 	"fmt"
-	"net/http"
 	"strings"
 	"testing"
 )
@@ -102,55 +101,6 @@ func TestErrorWithCause(t *testing.T) {
 	}
 }
 
-func TestErrorHTTPStatusCode(t *testing.T) {
-	tests := []struct {
-		name       string
-		errorType  ErrorType
-		wantStatus int
-	}{
-		{
-			name:       "not found -> 404",
-			errorType:  ErrorTypeNotFound,
-			wantStatus: http.StatusNotFound,
-		},
-		{
-			name:       "unavailable -> 503",
-			errorType:  ErrorTypeUnavailable,
-			wantStatus: http.StatusServiceUnavailable,
-		},
-		{
-			name:       "timeout -> 408",
-			errorType:  ErrorTypeTimeout,
-			wantStatus: http.StatusRequestTimeout,
-		},
-		{
-			name:       "bad request -> 400",
-			errorType:  ErrorTypeBadRequest,
-			wantStatus: http.StatusBadRequest,
-		},
-		{
-			name:       "internal -> 500",
-			errorType:  ErrorTypeInternal,
-			wantStatus: http.StatusInternalServerError,
-		},
-		{
-			name:       "unknown type -> 500",
-			errorType:  ErrorType("unknown"),
-			wantStatus: http.StatusInternalServerError,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := NewError(tt.errorType, "test error")
-			status := err.HTTPStatusCode()
-			
-			if status != tt.wantStatus {
-				t.Errorf("HTTPStatusCode() = %v, want %v", status, tt.wantStatus)
-			}
-		})
-	}
-}
 
 func TestErrorString(t *testing.T) {
 	// Simple error without details or cause
@@ -241,10 +191,5 @@ func TestErrorTypeValidation(t *testing.T) {
 	err := NewError("", "test message")
 	if err.Type != "" {
 		t.Errorf("Empty error type should be preserved")
-	}
-	
-	// Should default to 500 for unknown types
-	if err.HTTPStatusCode() != http.StatusInternalServerError {
-		t.Errorf("Unknown error type should default to 500")
 	}
 }

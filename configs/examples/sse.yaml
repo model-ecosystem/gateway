@@ -1,0 +1,73 @@
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+      readTimeout: 30
+      writeTimeout: 60  # Longer for SSE streams
+    sse:
+      enabled: true
+      writeTimeout: 60
+      keepaliveTimeout: 30
+  backend:
+    http:
+      maxIdleConns: 100
+      maxIdleConnsPerHost: 10
+      idleConnTimeout: 90
+      keepAlive: true
+      keepAliveTimeout: 30
+      dialTimeout: 10
+      responseHeaderTimeout: 10
+    sse:
+      dialTimeout: 10
+      responseTimeout: 0  # No timeout for long-running SSE
+      keepaliveTimeout: 30
+  registry:
+    type: static
+    static:
+      services:
+        - name: sse-service
+          instances:
+            - id: sse-1
+              address: "127.0.0.1"
+              port: 3010
+              health: healthy
+        - name: event-service
+          instances:
+            - id: event-1
+              address: "127.0.0.1"
+              port: 3011
+              health: healthy
+            - id: event-2
+              address: "127.0.0.1"
+              port: 3012
+              health: healthy
+  router:
+    rules:
+      # SSE endpoint
+      - id: sse-events
+        path: /events
+        methods: ["GET", "SSE"]  # SSE uses GET for initial request
+        serviceName: sse-service
+        loadBalance: round_robin
+        timeout: 0  # No timeout for SSE streams
+      
+      # SSE with sticky sessions for stateful events
+      - id: sse-notifications
+        path: /notifications/*
+        methods: ["GET", "SSE"]
+        serviceName: event-service
+        loadBalance: sticky_session
+        timeout: 0
+        sessionAffinity:
+          enabled: true
+          ttl: 3600
+          source: header  # SSE clients often can't send cookies
+          headerName: X-Client-Id
+      
+      # Regular HTTP API
+      - id: api-route
+        path: /api/*
+        serviceName: event-service
+        loadBalance: round_robin
+        timeout: 30

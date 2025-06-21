@@ -1,0 +1,67 @@
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+      readTimeout: 30
+      writeTimeout: 30
+
+  backend:
+    http:
+      maxIdleConns: 100
+      maxIdleConnsPerHost: 10
+      idleConnTimeout: 90
+
+  registry:
+    type: static
+    static:
+      services:
+        - name: backend-service
+          instances:
+            - id: backend-1
+              address: "localhost"
+              port: 3000
+              health: healthy
+        - name: unstable-service
+          instances:
+            - id: unstable-1
+              address: "localhost"
+              port: 3001
+              health: healthy
+
+  router:
+    rules:
+      - id: backend-route
+        path: /api/*
+        serviceName: backend-service
+        loadBalance: round_robin
+      - id: unstable-route
+        path: /unstable/*
+        serviceName: unstable-service
+        loadBalance: round_robin
+
+  # Circuit breaker configuration
+  circuitBreaker:
+    enabled: true
+    default:
+      maxFailures: 5           # Open circuit after 5 failures
+      failureThreshold: 0.5    # Or when 50% of requests fail
+      timeout: 60              # Stay open for 60 seconds
+      maxRequests: 1           # Allow 1 request in half-open state
+      interval: 60             # Reset counters every 60 seconds
+    
+    # Route-specific configurations
+    routes:
+      unstable-route:
+        maxFailures: 3         # More sensitive for unstable route
+        failureThreshold: 0.3  # Open at 30% failure rate
+        timeout: 30            # Shorter recovery time
+        maxRequests: 2         # Allow 2 test requests
+    
+    # Service-specific configurations
+    services:
+      backend-service:
+        maxFailures: 10        # More tolerant for stable service
+        failureThreshold: 0.7  # Open at 70% failure rate
+        timeout: 120           # Longer recovery time
+        maxRequests: 3         # Allow 3 test requests

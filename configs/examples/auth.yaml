@@ -1,0 +1,93 @@
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+      readTimeout: 30
+      writeTimeout: 30
+  backend:
+    http:
+      maxIdleConns: 100
+      maxIdleConnsPerHost: 10
+      idleConnTimeout: 90
+      keepAlive: true
+      keepAliveTimeout: 30
+      dialTimeout: 10
+      responseHeaderTimeout: 10
+  registry:
+    type: static
+    static:
+      services:
+        - name: example-service
+          instances:
+            - id: example-1
+              address: "127.0.0.1"
+              port: 3000
+              health: healthy
+            - id: example-2
+              address: "127.0.0.1"
+              port: 3001
+              health: healthy
+  router:
+    rules:
+      - id: example-route
+        path: /api/example/*
+        serviceName: example-service
+        loadBalance: round_robin
+        timeout: 10
+      - id: public-route
+        path: /public/*
+        serviceName: example-service
+        loadBalance: round_robin
+        timeout: 10
+  auth:
+    required: true
+    providers:
+      - jwt
+      - apikey
+    skipPaths:
+      - /public/
+      - /health
+    requiredScopes:
+      - api:read
+    jwt:
+      enabled: true
+      issuer: "https://auth.example.com"
+      audience:
+        - "https://api.example.com"
+      signingMethod: "RS256"
+      publicKey: |
+        -----BEGIN PUBLIC KEY-----
+        MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0Z3VS5JJcds6xfn/tZAo
+        DdDqA9kBE2uPDnlfP+ViXeFWv4zcYzUVlPkCs1/8kA/hYLmZQC5JqupG0efveBMA
+        TcVURAsqh7FTgVuDOLHnknUWJGvL3U6p6lzjMdv9t+M/mr7g+wO+7tg5QNGHqMZZ
+        CHB7UgIBSeKr0k8K8wVzXfTZmHMh2L+B70jGgQC3DpKYwqrVdBTB5gvCVGipnGFs
+        1Ztyc/kFf6SfEBM7GMCB1be4bPmefU/BdFqEPdAAxmVRMhh/fCNi5HG1BZU5VP6h
+        wGb7qrOlCtrYvkykRFLRJLMh4QUkQ7iC6x6NUibyg7LBzuTKlCK6jTEhBBiBVvKF
+        OQIDAQAB
+        -----END PUBLIC KEY-----
+      headerName: "Authorization"
+      scopeClaim: "scope"
+      subjectClaim: "sub"
+    apikey:
+      enabled: true
+      hashKeys: true
+      defaultScopes:
+        - api:read
+      headerName: "X-API-Key"
+      keys:
+        service-key-1:
+          # This is SHA256 hash of "test-api-key-123"
+          key: "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3"
+          subject: "test-service"
+          type: "service"
+          scopes:
+            - api:write
+            - api:admin
+        user-key-1:
+          # This is SHA256 hash of "user-api-key-456"
+          key: "5994471abb01112afcc18159f6cc74b4f511b99806da59b3caf5a9c173cacfc5"
+          subject: "john.doe@example.com"
+          type: "user"
+          scopes:
+            - api:read

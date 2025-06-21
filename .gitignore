@@ -40,5 +40,6 @@ Thumbs.db
 *.tmp
 *.temp
 
-doc/
+discussion/
+docs/
 CLAUDE.md

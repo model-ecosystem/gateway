@@ -1,0 +1,49 @@
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+      readTimeout: 30
+      writeTimeout: 30
+      # Maximum request body size: 10MB
+      maxRequestSize: 10485760
+
+  backend:
+    http:
+      maxIdleConns: 100
+      maxIdleConnsPerHost: 10
+      idleConnTimeout: 90
+
+  registry:
+    type: static
+    static:
+      services:
+        - name: backend-service
+          instances:
+            - id: backend-1
+              address: "localhost"
+              port: 3000
+              health: healthy
+
+  router:
+    rules:
+      - id: backend-route
+        path: /api/*
+        serviceName: backend-service
+        loadBalance: round_robin
+      
+      # File upload endpoint with larger limit
+      - id: upload-route
+        path: /api/upload/*
+        serviceName: backend-service
+        loadBalance: round_robin
+
+# Note: You can also set request size limits via environment variable:
+# export GATEWAY_GATEWAY_FRONTEND_HTTP_MAXREQUESTSIZE=10485760
+
+# Common sizes:
+# 1MB  = 1048576
+# 5MB  = 5242880
+# 10MB = 10485760
+# 50MB = 52428800
+# 100MB = 104857600

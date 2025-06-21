@@ -63,19 +63,48 @@ type LoadBalancer interface {
 	Select([]ServiceInstance) (*ServiceInstance, error)
 }
 
+// RequestAwareLoadBalancer selects instances based on request
+type RequestAwareLoadBalancer interface {
+	LoadBalancer
+	SelectForRequest(Request, []ServiceInstance) (*ServiceInstance, error)
+}
+
 // RouteRule defines routing configuration
 type RouteRule struct {
-	ID          string
-	Path        string
-	Methods     []string
-	ServiceName string
-	LoadBalance LoadBalanceStrategy
-	Timeout     time.Duration
+	ID              string
+	Path            string
+	Methods         []string
+	ServiceName     string
+	LoadBalance     LoadBalanceStrategy
+	Timeout         time.Duration
+	SessionAffinity *SessionAffinityConfig
+	Protocol        string                 // Protocol hint: http, grpc, websocket, sse
+	Metadata        map[string]interface{} // Additional protocol-specific configuration
 }
 
 // LoadBalanceStrategy defines load balancing algorithm
 type LoadBalanceStrategy string
 
 const (
-	LoadBalanceRoundRobin LoadBalanceStrategy = "round_robin"
+	LoadBalanceRoundRobin    LoadBalanceStrategy = "round_robin"
+	LoadBalanceStickySession LoadBalanceStrategy = "sticky_session"
 )
+
+// SessionSource defines where to extract session ID from
+type SessionSource string
+
+const (
+	SessionSourceCookie SessionSource = "cookie"
+	SessionSourceHeader SessionSource = "header"
+	SessionSourceQuery  SessionSource = "query"
+)
+
+// SessionAffinityConfig defines session affinity configuration
+type SessionAffinityConfig struct {
+	Enabled    bool          `yaml:"enabled"`
+	TTL        time.Duration `yaml:"ttl"`
+	Source     SessionSource `yaml:"source"`
+	CookieName string        `yaml:"cookieName,omitempty"`
+	HeaderName string        `yaml:"headerName,omitempty"`
+	QueryParam string        `yaml:"queryParam,omitempty"`
+}

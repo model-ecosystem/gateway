@@ -1,0 +1,78 @@
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+      readTimeout: 30
+      writeTimeout: 30
+  backend:
+    http:
+      maxIdleConns: 100
+      maxIdleConnsPerHost: 10
+      idleConnTimeout: 90
+      keepAlive: true
+      keepAliveTimeout: 30
+      dialTimeout: 10
+      responseHeaderTimeout: 10
+  registry:
+    type: static
+    static:
+      services:
+        - name: stateful-service
+          instances:
+            - id: instance-1
+              address: "127.0.0.1"
+              port: 3001
+              health: healthy
+            - id: instance-2
+              address: "127.0.0.1"
+              port: 3002
+              health: healthy
+            - id: instance-3
+              address: "127.0.0.1"
+              port: 3003
+              health: healthy
+  router:
+    rules:
+      # Example 1: Cookie-based session affinity (most common for web apps)
+      - id: web-app
+        path: /app/*
+        serviceName: stateful-service
+        loadBalance: sticky_session
+        timeout: 30
+        sessionAffinity:
+          enabled: true
+          ttl: 1800  # 30 minutes
+          source: cookie
+          cookieName: SESSION_ID
+      
+      # Example 2: Header-based session affinity (good for APIs/mobile apps)
+      - id: api-with-header
+        path: /api/v1/*
+        serviceName: stateful-service
+        loadBalance: sticky_session
+        timeout: 30
+        sessionAffinity:
+          enabled: true
+          ttl: 3600  # 1 hour
+          source: header
+          headerName: X-Session-Token
+      
+      # Example 3: Query parameter-based session affinity (for simple cases)
+      - id: download-service
+        path: /download/*
+        serviceName: stateful-service
+        loadBalance: sticky_session
+        timeout: 120
+        sessionAffinity:
+          enabled: true
+          ttl: 600  # 10 minutes
+          source: query
+          queryParam: sid
+      
+      # Example 4: No session affinity (stateless service)
+      - id: stateless-api
+        path: /public/*
+        serviceName: stateful-service
+        loadBalance: round_robin
+        timeout: 10

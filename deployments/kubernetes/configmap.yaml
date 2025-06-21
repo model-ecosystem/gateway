@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-config
+data:
+  gateway.yaml: |
+    gateway:
+      frontend:
+        http:
+          host: "0.0.0.0"
+          port: 8080
+          readTimeout: 30
+          writeTimeout: 30
+      backend:
+        http:
+          maxIdleConns: 100
+          maxIdleConnsPerHost: 10
+          idleConnTimeout: 90
+          keepAlive: true
+          keepAliveTimeout: 30
+          dialTimeout: 10
+          responseHeaderTimeout: 10
+      registry:
+        type: static
+        static:
+          services:
+            - name: example-service
+              instances:
+                - id: example-1
+                  address: "example-service.default.svc.cluster.local"
+                  port: 8080
+                  health: healthy
+      router:
+        rules:
+          - id: example-route
+            path: /api/*
+            serviceName: example-service
+            loadBalance: round_robin
+            timeout: 10

@@ -1,0 +1,52 @@
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+      readTimeout: 30
+      writeTimeout: 30
+
+  backend:
+    http:
+      maxIdleConns: 100
+      maxIdleConnsPerHost: 10
+      idleConnTimeout: 90
+
+  registry:
+    type: static
+    static:
+      services:
+        - name: backend-service
+          instances:
+            - id: backend-1
+              address: "localhost"
+              port: 3000
+              health: healthy
+
+  router:
+    rules:
+      - id: backend-route
+        path: /api/*
+        serviceName: backend-service
+        loadBalance: round_robin
+
+  # Health check configuration
+  health:
+    enabled: true
+    healthPath: /health
+    readyPath: /ready
+    livePath: /live
+    checks:
+      backend:
+        type: http
+        interval: 30
+        timeout: 5
+        config:
+          url: "http://localhost:3000/health"
+      
+      database:
+        type: tcp
+        interval: 60
+        timeout: 3
+        config:
+          address: "localhost:5432"

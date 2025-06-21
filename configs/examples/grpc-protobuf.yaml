@@ -1,0 +1,102 @@
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+      readTimeout: 30
+      writeTimeout: 30
+
+  backend:
+    http:
+      maxIdleConns: 100
+      maxIdleConnsPerHost: 10
+      idleConnTimeout: 90
+
+  registry:
+    type: static
+    static:
+      services:
+        - name: grpc-service
+          instances:
+            - id: grpc-1
+              address: "localhost"
+              port: 9090
+              health: healthy
+
+  router:
+    rules:
+      # Basic gRPC route with protobuf transcoding
+      - id: grpc-route
+        path: /api/grpc/*
+        serviceName: grpc-service
+        loadBalance: round_robin
+        grpc:
+          # Enable HTTP to gRPC transcoding
+          enableTranscoding: true
+          
+          # Fully qualified gRPC service name
+          service: "example.v1.ExampleService"
+          
+          # Option 1: Load proto descriptor from file
+          # protoDescriptor: "/path/to/service.pb"
+          
+          # Option 2: Embed proto descriptor as base64
+          # Generate with: protoc --descriptor_set_out=service.pb service.proto
+          # Then base64 encode: base64 service.pb
+          protoDescriptorBase64: "CgtzZXJ2aWNlLnByb3RvEgpleGFtcGxlLnYx..."
+          
+          # Custom transcoding rules (optional)
+          transcodingRules:
+            # Map HTTP paths to gRPC methods
+            "GET /users/{id}": "GetUser"
+            "POST /users": "CreateUser"
+            "PUT /users/{id}": "UpdateUser"
+            "DELETE /users/{id}": "DeleteUser"
+            "GET /users": "ListUsers"
+
+      # REST-style route that maps to gRPC backend
+      - id: users-route
+        path: /api/users/*
+        serviceName: grpc-service
+        loadBalance: round_robin
+        grpc:
+          enableTranscoding: true
+          service: "users.v1.UserService"
+          
+          # Inline proto descriptor for simple services
+          protoDescriptorBase64: |
+            CgpwYXNzZW5nZXIucHJvdG8SCnBhc3Nlbmdlci5YOQodcGFzc2Vu
+            Z2VyLnByb3RvLnBhc3Nlbmdlci52MRoNcGFzc2VuZ2VyLnByb3Rv
+
+# How to generate proto descriptors:
+# 1. Install protoc compiler
+# 2. Generate descriptor set:
+#    protoc --descriptor_set_out=service.pb \
+#           --include_imports \
+#           --include_source_info \
+#           service.proto
+# 3. Convert to base64:
+#    base64 service.pb > service.pb.b64
+# 4. Copy the base64 content to protoDescriptorBase64
+
+# Example proto file:
+# syntax = "proto3";
+# package example.v1;
+# 
+# message GetUserRequest {
+#   string id = 1;
+# }
+# 
+# message User {
+#   string id = 1;
+#   string name = 2;
+#   string email = 3;
+# }
+# 
+# service UserService {
+#   rpc GetUser(GetUserRequest) returns (User);
+#   rpc CreateUser(User) returns (User);
+#   rpc UpdateUser(User) returns (User);
+#   rpc DeleteUser(GetUserRequest) returns (google.protobuf.Empty);
+#   rpc ListUsers(google.protobuf.Empty) returns (stream User);
+# }

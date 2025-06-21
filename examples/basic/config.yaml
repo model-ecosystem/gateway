@@ -1,0 +1,48 @@
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+      readTimeout: 30
+      writeTimeout: 30
+  backend:
+    http:
+      maxIdleConns: 100
+      maxIdleConnsPerHost: 10
+      idleConnTimeout: 90
+      keepAlive: true
+      keepAliveTimeout: 30
+      dialTimeout: 10
+      responseHeaderTimeout: 10
+  registry:
+    type: static
+    static:
+      services:
+        - name: service-a
+          instances:
+            - id: service-a-1
+              address: "service-a"
+              port: 8001
+              health: healthy
+            - id: service-a-2
+              address: "service-a"
+              port: 8002
+              health: healthy
+        - name: service-b
+          instances:
+            - id: service-b-1
+              address: "service-b"
+              port: 8003
+              health: healthy
+  router:
+    rules:
+      - id: users-route
+        path: /api/users/*
+        serviceName: service-a
+        loadBalance: round_robin
+        timeout: 10
+      - id: products-route
+        path: /api/products/*
+        serviceName: service-b
+        loadBalance: round_robin
+        timeout: 10

@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  # HTTP test server
+  http-server:
+    build:
+      context: servers/http
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+    labels:
+      - "gateway.enable=true"
+      - "gateway.service=test-http"
+      - "gateway.port=3000"
+
+  # WebSocket test server
+  websocket-server:
+    build:
+      context: servers/websocket
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+    labels:
+      - "gateway.enable=true"
+      - "gateway.service=test-websocket"
+      - "gateway.port=3001"
+
+  # SSE test server
+  sse-server:
+    build:
+      context: servers/sse
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+    labels:
+      - "gateway.enable=true"
+      - "gateway.service=test-sse"
+      - "gateway.port=3002"
+
+  # Gateway
+  gateway:
+    build:
+      context: ../../
+      dockerfile: deployments/docker/Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./configs:/etc/gateway
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - CONFIG_FILE=/etc/gateway/test.yaml
+    depends_on:
+      - http-server
+      - websocket-server
+      - sse-server

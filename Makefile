@@ -13,7 +13,7 @@ build:
 	@echo "Building gateway..."
 	@mkdir -p $(BUILD_DIR)/configs
 	@go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) $(MAIN_PATH)
-	@cp configs/gateway.yaml $(BUILD_DIR)/configs/
+	@cp configs/base/gateway.yaml $(BUILD_DIR)/configs/
 	@echo "Build complete: $(BUILD_DIR)/$(BINARY_NAME)"
 	@echo "Configuration copied to: $(BUILD_DIR)/configs/"
 
@@ -22,54 +22,54 @@ run: build
 	@echo "Starting gateway..."
 	@cd $(BUILD_DIR) && ./$(BINARY_NAME) -config configs/gateway.yaml
 
-# 开发模式运行（直接运行不构建）
+# Run in development mode (without building)
 dev:
 	@echo "Starting gateway in dev mode..."
-	@go run $(MAIN_PATH) -config configs/gateway.yaml
+	@go run $(MAIN_PATH) -config configs/base/gateway.yaml
 
-# 清理构建产物
+# Clean build artifacts
 clean:
 	@echo "Cleaning..."
 	@rm -rf $(BUILD_DIR)
 	@echo "Clean complete"
 
-# 运行测试
+# Run tests
 test:
 	@echo "Running tests..."
 	@go test -v ./...
 
-# 运行测试并生成覆盖率报告
+# Run tests with coverage
 test-coverage:
 	@echo "Running tests with coverage..."
 	@go test -v -coverprofile=coverage.out ./...
 	@go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"
 
-# 代码检查
+# Run linter
 lint:
 	@echo "Running linter..."
 	@golangci-lint run || echo "Install golangci-lint: https://golangci-lint.run/usage/install/"
 
-# 格式化代码
+# Format code
 fmt:
 	@echo "Formatting code..."
 	@go fmt ./...
 	@echo "Format complete"
 
-# 下载依赖
+# Download dependencies
 deps:
 	@echo "Downloading dependencies..."
 	@go mod download
 	@go mod tidy
 	@echo "Dependencies updated"
 
-# 安装工具
+# Install tools
 install-tools:
 	@echo "Installing development tools..."
 	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	@echo "Tools installed"
 
-# 显示帮助
+# Show help
 help:
 	@echo "Available commands:"
 	@echo "  make build         - Build the gateway binary"

@@ -1,0 +1,78 @@
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8443
+      readTimeout: 30
+      writeTimeout: 30
+      tls:
+        enabled: true
+        certFile: "/path/to/server.crt"
+        keyFile: "/path/to/server.key"
+        minVersion: "1.2"
+        maxVersion: "1.3"
+        cipherSuites:
+          - "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+          - "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+          - "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"
+          - "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"
+        # mTLS configuration
+        clientAuth: "require"  # none, request, require, verify
+        clientCAFile: "/path/to/client-ca.crt"
+    websocket:
+      enabled: true
+      host: "0.0.0.0"
+      port: 8444
+      readTimeout: 60
+      writeTimeout: 60
+      handshakeTimeout: 10
+      tls:
+        enabled: true
+        certFile: "/path/to/server.crt"
+        keyFile: "/path/to/server.key"
+        minVersion: "1.2"
+  backend:
+    http:
+      maxIdleConns: 100
+      maxIdleConnsPerHost: 10
+      idleConnTimeout: 90
+      keepAlive: true
+      keepAliveTimeout: 30
+      dialTimeout: 10
+      responseHeaderTimeout: 10
+      # TLS for backend connections
+      tls:
+        enabled: true
+        insecureSkipVerify: false  # Set to true for self-signed certs in dev
+        caFile: "/path/to/backend-ca.crt"  # CA to verify backend servers
+        # Client certificates for mTLS with backends
+        certFile: "/path/to/client.crt"
+        keyFile: "/path/to/client.key"
+        serverName: "backend.internal"  # Override SNI if needed
+        minVersion: "1.2"
+        cipherSuites:
+          - "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+          - "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+  registry:
+    type: static
+    static:
+      services:
+        - name: secure-service
+          instances:
+            - id: secure-1
+              address: "backend.internal"
+              port: 443
+              scheme: "https"  # Use HTTPS for this backend
+              health: healthy
+            - id: secure-2
+              address: "backend2.internal"
+              port: 443
+              scheme: "https"
+              health: healthy
+  router:
+    rules:
+      - id: secure-route
+        path: /api/secure/*
+        serviceName: secure-service
+        loadBalance: round_robin
+        timeout: 10
