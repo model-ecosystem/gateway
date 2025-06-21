@@ -182,8 +182,9 @@ func TestServer_StartStop_WithWebSocket(t *testing.T) {
 					WriteTimeout: 5,
 				},
 				WebSocket: &config.WebSocket{
-					Host: "localhost",
-					Port: wsPort,
+					Enabled: true,
+					Host:    "localhost",
+					Port:    wsPort,
 				},
 			},
 			Backend: config.Backend{
