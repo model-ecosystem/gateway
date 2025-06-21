@@ -5,7 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"time"
-	
+
 	"gateway/internal/core"
 	"gateway/internal/retry"
 	gwerrors "gateway/pkg/errors"
@@ -32,20 +32,20 @@ type Middleware struct {
 func New(config Config, logger *slog.Logger) *Middleware {
 	// Create retriers for all configurations
 	retriers := make(map[string]*retry.Retrier)
-	
+
 	// Create default retrier
 	retriers["default"] = retry.New(config.Default)
-	
+
 	// Create route-specific retriers
 	for route, cfg := range config.Routes {
 		retriers["route:"+route] = retry.New(cfg)
 	}
-	
+
 	// Create service-specific retriers
 	for service, cfg := range config.Services {
 		retriers["service:"+service] = retry.New(cfg)
 	}
-	
+
 	return &Middleware{
 		config:   config,
 		retriers: retriers,
@@ -59,16 +59,16 @@ func (m *Middleware) Apply() core.Middleware {
 		return func(ctx context.Context, req core.Request) (core.Response, error) {
 			// Get retrier based on route or service
 			retrier := m.getRetrier(ctx)
-			
+
 			var resp core.Response
 			var lastErr error
 			startTime := time.Now()
-			
+
 			// Use retrier to execute the request
 			err := retrier.Do(ctx, func(ctx context.Context) error {
 				var err error
 				resp, err = next(ctx, req)
-				
+
 				if err != nil {
 					// Check if error is retryable
 					if !m.isRetryableError(err) {
@@ -77,7 +77,7 @@ func (m *Middleware) Apply() core.Middleware {
 					lastErr = err
 					return err
 				}
-				
+
 				// Check response status for retryable conditions
 				if resp != nil && m.isRetryableStatus(resp.StatusCode()) {
 					lastErr = &gwerrors.Error{
@@ -89,10 +89,10 @@ func (m *Middleware) Apply() core.Middleware {
 					}
 					return lastErr
 				}
-				
+
 				return nil
 			})
-			
+
 			// Handle retry exhaustion
 			if err != nil {
 				var retryErr *retry.Error
@@ -104,14 +104,14 @@ func (m *Middleware) Apply() core.Middleware {
 						"error", retryErr.Err,
 					)
 				}
-				
+
 				// Return the last error
 				if lastErr != nil {
 					return nil, lastErr
 				}
 				return nil, err
 			}
-			
+
 			// Log successful retry if it took more than one attempt
 			if retryErr, ok := err.(*retry.Error); ok && retryErr.Attempts > 1 {
 				m.logger.Info("request succeeded after retry",
@@ -120,7 +120,7 @@ func (m *Middleware) Apply() core.Middleware {
 					"duration", time.Since(startTime),
 				)
 			}
-			
+
 			return resp, nil
 		}
 	}
@@ -134,14 +134,14 @@ func (m *Middleware) getRetrier(ctx context.Context) *retry.Retrier {
 			return retrier
 		}
 	}
-	
+
 	// Try service-specific retrier
 	if serviceName, ok := ctx.Value("service_name").(string); ok {
 		if retrier, exists := m.retriers["service:"+serviceName]; exists {
 			return retrier
 		}
 	}
-	
+
 	// Return default retrier
 	return m.retriers["default"]
 }
@@ -153,14 +153,14 @@ func (m *Middleware) isRetryableError(err error) bool {
 	if errors.As(err, &gwErr) {
 		switch gwErr.Type {
 		case gwerrors.ErrorTypeBadRequest,
-		     gwerrors.ErrorTypeUnauthorized,
-		     gwerrors.ErrorTypeForbidden,
-		     gwerrors.ErrorTypeNotFound,
-		     gwerrors.ErrorTypeRateLimit:
+			gwerrors.ErrorTypeUnauthorized,
+			gwerrors.ErrorTypeForbidden,
+			gwerrors.ErrorTypeNotFound,
+			gwerrors.ErrorTypeRateLimit:
 			return false
 		}
 	}
-	
+
 	// Retry timeouts, service unavailable, and internal errors
 	return true
 }
@@ -171,15 +171,15 @@ func (m *Middleware) isRetryableStatus(status int) bool {
 	if status >= 500 && status != 501 {
 		return true
 	}
-	
+
 	// Retry on specific 4xx errors
 	switch status {
 	case 408, // Request Timeout
-	     429, // Too Many Requests
-	     503: // Service Unavailable
+		429, // Too Many Requests
+		503: // Service Unavailable
 		return true
 	}
-	
+
 	return false
 }
 

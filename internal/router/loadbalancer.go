@@ -25,11 +25,11 @@ func (b *RoundRobinBalancer) Select(instances []core.ServiceInstance) (*core.Ser
 			healthy = append(healthy, inst)
 		}
 	}
-	
+
 	if len(healthy) == 0 {
 		return nil, errors.NewError(errors.ErrorTypeUnavailable, "no healthy instances")
 	}
-	
+
 	// Round-robin selection
 	index := b.counter.Add(1) % uint64(len(healthy))
 	return &healthy[index], nil

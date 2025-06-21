@@ -42,13 +42,13 @@ func DefaultRetryableFunc(err error) bool {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false
 	}
-	
+
 	// Don't retry non-retryable errors
 	var nonRetryable *NonRetryableError
 	if errors.As(err, &nonRetryable) {
 		return false
 	}
-	
+
 	// Retry all other errors by default
 	return true
 }
@@ -76,7 +76,7 @@ func New(config Config) *Retrier {
 	if config.RetryableFunc == nil {
 		config.RetryableFunc = DefaultRetryableFunc
 	}
-	
+
 	return &Retrier{
 		config: config,
 	}
@@ -85,33 +85,33 @@ func New(config Config) *Retrier {
 // Do executes the given function with retry logic
 func (r *Retrier) Do(ctx context.Context, fn func(context.Context) error) error {
 	var lastErr error
-	
+
 	for attempt := 0; attempt <= r.config.MaxAttempts; attempt++ {
 		// Check context before attempt
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		
+
 		// Execute the function
 		err := fn(ctx)
 		if err == nil {
 			return nil
 		}
-		
+
 		lastErr = err
-		
+
 		// Check if we should retry
 		if attempt >= r.config.MaxAttempts {
 			break
 		}
-		
+
 		if !r.config.RetryableFunc(err) {
 			return err
 		}
-		
+
 		// Calculate delay
 		delay := r.calculateDelay(attempt)
-		
+
 		// Wait for the delay or context cancellation
 		select {
 		case <-time.After(delay):
@@ -120,7 +120,7 @@ func (r *Retrier) Do(ctx context.Context, fn func(context.Context) error) error 
 			return ctx.Err()
 		}
 	}
-	
+
 	return &Error{
 		Err:      lastErr,
 		Attempts: r.config.MaxAttempts + 1,
@@ -130,33 +130,33 @@ func (r *Retrier) Do(ctx context.Context, fn func(context.Context) error) error 
 // DoWithData executes the given function with retry logic and returns data
 func (r *Retrier) DoWithData(ctx context.Context, fn func(context.Context) (interface{}, error)) (interface{}, error) {
 	var lastErr error
-	
+
 	for attempt := 0; attempt <= r.config.MaxAttempts; attempt++ {
 		// Check context before attempt
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		
+
 		// Execute the function
 		data, err := fn(ctx)
 		if err == nil {
 			return data, nil
 		}
-		
+
 		lastErr = err
-		
+
 		// Check if we should retry
 		if attempt >= r.config.MaxAttempts {
 			break
 		}
-		
+
 		if !r.config.RetryableFunc(err) {
 			return nil, err
 		}
-		
+
 		// Calculate delay
 		delay := r.calculateDelay(attempt)
-		
+
 		// Wait for the delay or context cancellation
 		select {
 		case <-time.After(delay):
@@ -165,7 +165,7 @@ func (r *Retrier) DoWithData(ctx context.Context, fn func(context.Context) (inte
 			return nil, ctx.Err()
 		}
 	}
-	
+
 	return nil, &Error{
 		Err:      lastErr,
 		Attempts: r.config.MaxAttempts + 1,
@@ -176,19 +176,19 @@ func (r *Retrier) DoWithData(ctx context.Context, fn func(context.Context) (inte
 func (r *Retrier) calculateDelay(attempt int) time.Duration {
 	// Calculate base delay using exponential backoff
 	delay := float64(r.config.InitialDelay) * math.Pow(r.config.Multiplier, float64(attempt))
-	
+
 	// Cap at max delay
 	if delay > float64(r.config.MaxDelay) {
 		delay = float64(r.config.MaxDelay)
 	}
-	
+
 	// Add jitter if enabled
 	if r.config.Jitter {
 		// Add ±25% jitter
 		jitter := delay * 0.25
 		delay = delay + (rand.Float64()*2-1)*jitter
 	}
-	
+
 	return time.Duration(delay)
 }
 

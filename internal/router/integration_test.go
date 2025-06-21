@@ -101,7 +101,7 @@ func TestRouterIntegration(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a test request
 			req := httptest.NewRequest(tt.method, tt.path, nil)
-			
+
 			// Create a mock request wrapper
 			mockReq := &mockRequest{
 				method: req.Method,
@@ -158,7 +158,7 @@ func TestRouterConcurrency(t *testing.T) {
 		go func() {
 			ctx := context.Background()
 			req := &mockRequest{method: "GET", path: "/api/concurrent"}
-			
+
 			_, err := router.Route(ctx, req)
 			if err != nil {
 				errors <- err

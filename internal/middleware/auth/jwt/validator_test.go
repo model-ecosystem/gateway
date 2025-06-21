@@ -41,10 +41,10 @@ func TestNewTokenValidator(t *testing.T) {
 // TestValidateConnection_Basic tests basic connection validation
 func TestValidateConnection_Basic(t *testing.T) {
 	ctx := context.Background()
-	
+
 	// Create a provider
 	config := &Config{
-		SigningMethod: "HS256", 
+		SigningMethod: "HS256",
 		Secret:        "test-secret",
 		Issuer:        "test-issuer",
 		Audience:      []string{"test-audience"},
@@ -152,7 +152,7 @@ func TestScheduleRecheck(t *testing.T) {
 // TestContextCancellation tests that timers are cleaned up when context is cancelled
 func TestContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	config := &Config{
 		SigningMethod: "HS256",
 		Secret:        "test-secret",
@@ -202,17 +202,17 @@ func TestConcurrentAccess(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		go func(id int) {
 			connID := fmt.Sprintf("conn-%d", id)
-			
+
 			// Create timer
 			timer := time.NewTimer(1 * time.Second)
 			validator.mu.Lock()
 			validator.timers[connID] = timer
 			validator.mu.Unlock()
-			
+
 			// Stop it after a short delay
 			time.Sleep(10 * time.Millisecond)
 			validator.StopValidation(connID)
-			
+
 			done <- true
 		}(i)
 	}
@@ -238,7 +238,7 @@ func TestValidateConnection_WithMockAuthInfo(t *testing.T) {
 	// This test demonstrates the expected behavior when integrated
 	// with a real JWT provider. Since we can't easily mock the Provider's
 	// internal behavior, this serves as documentation of expected usage.
-	
+
 	t.Run("token with expiration creates timer", func(t *testing.T) {
 		config := &Config{
 			SigningMethod: "HS256",
@@ -246,7 +246,7 @@ func TestValidateConnection_WithMockAuthInfo(t *testing.T) {
 		}
 		provider, _ := NewProvider(config, slog.Default())
 		validator := NewTokenValidator(provider, slog.Default())
-		
+
 		// In a real scenario with a valid token that has expiration,
 		// a timer would be created. We can verify the structure is ready
 		// for this by checking the timers map exists
@@ -254,7 +254,7 @@ func TestValidateConnection_WithMockAuthInfo(t *testing.T) {
 			t.Error("timers map should be initialized")
 		}
 	})
-	
+
 	t.Run("multiple connections tracked separately", func(t *testing.T) {
 		config := &Config{
 			SigningMethod: "HS256",
@@ -262,7 +262,7 @@ func TestValidateConnection_WithMockAuthInfo(t *testing.T) {
 		}
 		provider, _ := NewProvider(config, slog.Default())
 		validator := NewTokenValidator(provider, slog.Default())
-		
+
 		// Simulate multiple connections with timers
 		for i := 0; i < 3; i++ {
 			connID := fmt.Sprintf("test-conn-%d", i)
@@ -271,16 +271,16 @@ func TestValidateConnection_WithMockAuthInfo(t *testing.T) {
 			validator.timers[connID] = timer
 			validator.mu.Unlock()
 		}
-		
+
 		// Verify all are tracked
 		validator.mu.RLock()
 		count := len(validator.timers)
 		validator.mu.RUnlock()
-		
+
 		if count != 3 {
 			t.Errorf("expected 3 timers, got %d", count)
 		}
-		
+
 		// Clean up
 		for i := 0; i < 3; i++ {
 			connID := fmt.Sprintf("test-conn-%d", i)

@@ -3,7 +3,7 @@ package session
 import (
 	"net/url"
 	"strings"
-	
+
 	"gateway/internal/core"
 )
 
@@ -25,7 +25,7 @@ func NewExtractor(config *core.SessionAffinityConfig) Extractor {
 	if config == nil || !config.Enabled {
 		return ExtractorFunc(func(req core.Request) string { return "" })
 	}
-	
+
 	switch config.Source {
 	case core.SessionSourceCookie:
 		return NewCookieExtractor(config.CookieName)
@@ -58,14 +58,14 @@ func (e *CookieExtractor) Extract(req core.Request) string {
 	if len(cookieHeaders) == 0 {
 		return ""
 	}
-	
+
 	for _, cookieHeader := range cookieHeaders {
 		cookies := parseCookies(cookieHeader)
 		if value, ok := cookies[e.cookieName]; ok {
 			return value
 		}
 	}
-	
+
 	return ""
 }
 
@@ -111,14 +111,14 @@ func (e *QueryExtractor) Extract(req core.Request) string {
 	if err != nil {
 		return ""
 	}
-	
+
 	return u.Query().Get(e.paramName)
 }
 
 // parseCookies parses a cookie header string into a map
 func parseCookies(cookieHeader string) map[string]string {
 	cookies := make(map[string]string)
-	
+
 	// Split by semicolon to get individual cookies
 	parts := strings.Split(cookieHeader, ";")
 	for _, part := range parts {
@@ -127,23 +127,23 @@ func parseCookies(cookieHeader string) map[string]string {
 		if part == "" {
 			continue
 		}
-		
+
 		// Split by = to get name and value
 		idx := strings.Index(part, "=")
 		if idx < 0 {
 			continue
 		}
-		
+
 		name := strings.TrimSpace(part[:idx])
 		value := strings.TrimSpace(part[idx+1:])
-		
+
 		// Remove quotes if present
 		if len(value) >= 2 && value[0] == '"' && value[len(value)-1] == '"' {
 			value = value[1 : len(value)-1]
 		}
-		
+
 		cookies[name] = value
 	}
-	
+
 	return cookies
 }

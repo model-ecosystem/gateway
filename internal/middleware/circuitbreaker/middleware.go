@@ -5,7 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"sync"
-	
+
 	"gateway/internal/circuitbreaker"
 	"gateway/internal/core"
 	gwerrors "gateway/pkg/errors"
@@ -42,17 +42,17 @@ func (m *Middleware) Apply() core.Middleware {
 		return func(ctx context.Context, req core.Request) (core.Response, error) {
 			// Get circuit breaker key based on route or service
 			key := m.getCircuitBreakerKey(ctx, req)
-			
+
 			// Get or create circuit breaker for this key
 			cb := m.getOrCreateBreaker(key)
-			
+
 			// Check if request is allowed
 			if !cb.Allow() {
-				m.logger.Warn("circuit breaker open", 
+				m.logger.Warn("circuit breaker open",
 					"key", key,
 					"state", cb.State().String(),
 				)
-				
+
 				return nil, &gwerrors.Error{
 					Type:    gwerrors.ErrorTypeUnavailable,
 					Message: "Service temporarily unavailable",
@@ -62,16 +62,16 @@ func (m *Middleware) Apply() core.Middleware {
 					},
 				}
 			}
-			
+
 			// Execute the request
 			resp, err := next(ctx, req)
-			
+
 			// Record result
 			if err != nil {
 				// Check if error is retryable
 				if m.isRetryableError(err) {
 					cb.Failure()
-					m.logger.Debug("request failed", 
+					m.logger.Debug("request failed",
 						"key", key,
 						"error", err,
 						"stats", cb.Stats(),
@@ -80,7 +80,7 @@ func (m *Middleware) Apply() core.Middleware {
 			} else {
 				cb.Success()
 			}
-			
+
 			return resp, err
 		}
 	}
@@ -92,12 +92,12 @@ func (m *Middleware) getCircuitBreakerKey(ctx context.Context, req core.Request)
 	if routeID, ok := ctx.Value("route_id").(string); ok {
 		return "route:" + routeID
 	}
-	
+
 	// Try to get service name from context
 	if serviceName, ok := ctx.Value("service_name").(string); ok {
 		return "service:" + serviceName
 	}
-	
+
 	// Default to path-based key
 	return "path:" + req.Path()
 }
@@ -108,10 +108,10 @@ func (m *Middleware) getOrCreateBreaker(key string) *circuitbreaker.CircuitBreak
 	if breaker, ok := m.breakers.Load(key); ok {
 		return breaker.(*circuitbreaker.CircuitBreaker)
 	}
-	
+
 	// Create new breaker with appropriate config
 	config := m.getConfig(key)
-	
+
 	// Add state change logging
 	originalOnChange := config.OnStateChange
 	config.OnStateChange = func(from, to circuitbreaker.State) {
@@ -124,9 +124,9 @@ func (m *Middleware) getOrCreateBreaker(key string) *circuitbreaker.CircuitBreak
 			originalOnChange(from, to)
 		}
 	}
-	
+
 	breaker := circuitbreaker.New(config)
-	
+
 	// Store and return
 	actual, _ := m.breakers.LoadOrStore(key, breaker)
 	return actual.(*circuitbreaker.CircuitBreaker)
@@ -141,7 +141,7 @@ func (m *Middleware) getConfig(key string) circuitbreaker.Config {
 			return config
 		}
 	}
-	
+
 	// Check for specific service config
 	if len(key) > 8 && key[:8] == "service:" {
 		serviceName := key[8:]
@@ -149,7 +149,7 @@ func (m *Middleware) getConfig(key string) circuitbreaker.Config {
 			return config
 		}
 	}
-	
+
 	// Return default config
 	return m.config.Default
 }
@@ -161,13 +161,13 @@ func (m *Middleware) isRetryableError(err error) bool {
 	if errors.As(err, &gwErr) {
 		switch gwErr.Type {
 		case gwerrors.ErrorTypeBadRequest,
-		     gwerrors.ErrorTypeUnauthorized,
-		     gwerrors.ErrorTypeForbidden,
-		     gwerrors.ErrorTypeNotFound:
+			gwerrors.ErrorTypeUnauthorized,
+			gwerrors.ErrorTypeForbidden,
+			gwerrors.ErrorTypeNotFound:
 			return false
 		}
 	}
-	
+
 	// Count timeouts, service unavailable, and internal errors as failures
 	return true
 }

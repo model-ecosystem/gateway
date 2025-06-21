@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
-	
+
 	"gateway/internal/config"
 )
 
@@ -15,14 +15,14 @@ func main() {
 	fmt.Println()
 	fmt.Println("## Available Environment Variables")
 	fmt.Println()
-	
+
 	cfg := &config.Config{}
 	examples := config.EnvExample(cfg)
-	
+
 	for _, example := range examples {
 		fmt.Printf("- `%s`\n", example)
 	}
-	
+
 	fmt.Println()
 	fmt.Println("## Examples")
 	fmt.Println()
@@ -42,6 +42,6 @@ func main() {
 	fmt.Println("# Run gateway with env vars")
 	fmt.Println("./gateway -config gateway.yaml")
 	fmt.Println("```")
-	
+
 	os.Exit(0)
 }

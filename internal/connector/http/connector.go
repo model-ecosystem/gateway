@@ -65,7 +65,22 @@ func (c *HTTPConnector) Forward(ctx context.Context, req core.Request, route *co
 
 	// Set X-Forwarded headers
 	httpReq.Header.Set("X-Forwarded-For", req.RemoteAddr())
-	httpReq.Header.Set("X-Forwarded-Proto", "http")
+
+	// Determine protocol based on TLS or existing header
+	proto := "http"
+	headers := req.Headers()
+	if existingProto := headers["X-Forwarded-Proto"]; len(existingProto) > 0 && existingProto[0] != "" {
+		// Trust existing header if present (from a trusted proxy)
+		proto = existingProto[0]
+	} else if ssl := headers["X-Forwarded-Ssl"]; len(ssl) > 0 && ssl[0] == "on" {
+		// Some proxies use X-Forwarded-Ssl
+		proto = "https"
+	} else if req.URL() != "" && strings.HasPrefix(req.URL(), "https://") {
+		// Check if original URL was HTTPS
+		proto = "https"
+	}
+	httpReq.Header.Set("X-Forwarded-Proto", proto)
+
 	if host := req.Headers()["Host"]; len(host) > 0 {
 		httpReq.Header.Set("X-Forwarded-Host", host[0])
 	}

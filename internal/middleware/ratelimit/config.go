@@ -2,7 +2,7 @@ package ratelimit
 
 import (
 	"log/slog"
-	
+
 	"gateway/internal/storage"
 )
 

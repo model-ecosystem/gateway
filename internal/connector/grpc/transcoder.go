@@ -247,7 +247,7 @@ func (t *Transcoder) JSONToProtobuf(jsonData []byte, messageType string) ([]byte
 		}
 		return jsonData, nil
 	}
-	
+
 	// Use registry to convert
 	protoData, err := t.registry.JSONToProto(jsonData, messageType)
 	if err != nil {
@@ -258,7 +258,7 @@ func (t *Transcoder) JSONToProtobuf(jsonData []byte, messageType string) ([]byte
 		)
 		return jsonData, nil
 	}
-	
+
 	return protoData, nil
 }
 
@@ -268,7 +268,7 @@ func (t *Transcoder) ProtobufToJSON(protoData []byte, messageType string) ([]byt
 	if t.registry == nil {
 		return protoData, nil
 	}
-	
+
 	// Use registry to convert
 	jsonData, err := t.registry.ProtoToJSON(protoData, messageType)
 	if err != nil {
@@ -279,7 +279,7 @@ func (t *Transcoder) ProtobufToJSON(protoData []byte, messageType string) ([]byt
 		)
 		return protoData, nil
 	}
-	
+
 	return jsonData, nil
 }
 
@@ -288,7 +288,7 @@ func (t *Transcoder) TranscodeRequestWithMethod(jsonData []byte, methodPath stri
 	if t.registry == nil {
 		return jsonData, nil
 	}
-	
+
 	return t.registry.TranscodeRequest(jsonData, methodPath)
 }
 
@@ -297,7 +297,7 @@ func (t *Transcoder) TranscodeResponseWithMethod(protoData []byte, methodPath st
 	if t.registry == nil {
 		return protoData, nil
 	}
-	
+
 	return t.registry.TranscodeResponse(protoData, methodPath)
 }
 
@@ -306,7 +306,7 @@ func (t *Transcoder) LoadProtoDescriptor(descriptorData []byte) error {
 	if t.registry == nil {
 		return fmt.Errorf("no proto registry available")
 	}
-	
+
 	return t.registry.LoadDescriptorSet(descriptorData)
 }
 
@@ -315,6 +315,6 @@ func (t *Transcoder) LoadProtoDescriptorBase64(base64Data string) error {
 	if t.registry == nil {
 		return fmt.Errorf("no proto registry available")
 	}
-	
+
 	return t.registry.LoadDescriptorFromBase64(base64Data)
 }

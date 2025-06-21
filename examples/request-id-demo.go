@@ -19,9 +19,9 @@ func echoHandler(ctx context.Context, req core.Request) (core.Response, error) {
 	fmt.Printf("  Method: %s\n", req.Method())
 	fmt.Printf("  Timestamp: %s\n", time.Now().Format(time.RFC3339))
 	fmt.Println()
-	
+
 	responseBody := fmt.Sprintf("Response with request ID: %s", req.ID())
-	
+
 	return &mockResponse{
 		statusCode: 200,
 		headers: map[string][]string{
@@ -38,10 +38,9 @@ type mockResponse struct {
 	body       io.ReadCloser
 }
 
-func (m *mockResponse) StatusCode() int               { return m.statusCode }
+func (m *mockResponse) StatusCode() int              { return m.statusCode }
 func (m *mockResponse) Headers() map[string][]string { return m.headers }
 func (m *mockResponse) Body() io.ReadCloser          { return m.body }
-
 
 func main() {
 	// Create HTTP adapter with echo handler
@@ -51,15 +50,15 @@ func main() {
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
-	
+
 	adapter := httpAdapter.New(cfg, echoHandler)
-	
+
 	// Start the server
 	ctx := context.Background()
 	if err := adapter.Start(ctx); err != nil {
 		log.Fatal(err)
 	}
-	
+
 	fmt.Println("Server started on http://127.0.0.1:8080")
 	fmt.Println("Request ID format: timestamp-randomhex (e.g., 1737039600123-a2b3c4d5)")
 	fmt.Println()
@@ -70,7 +69,7 @@ func main() {
 	fmt.Println("  - Timestamp component for chronological ordering")
 	fmt.Println("  - Random component for uniqueness")
 	fmt.Println()
-	
+
 	// Keep running
 	select {}
 }

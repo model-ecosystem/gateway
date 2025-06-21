@@ -5,11 +5,11 @@ import (
 	"log/slog"
 	"time"
 
-	"gateway/internal/config"
-	"gateway/internal/core"
 	httpAdapter "gateway/internal/adapter/http"
 	sseAdapter "gateway/internal/adapter/sse"
 	wsAdapter "gateway/internal/adapter/websocket"
+	"gateway/internal/config"
+	"gateway/internal/core"
 	"gateway/internal/middleware/auth/jwt"
 	"gateway/pkg/errors"
 	tlsutil "gateway/pkg/tls"
@@ -62,7 +62,7 @@ func CreateSSEAdapter(
 	}
 
 	sse := sseAdapter.NewAdapter(sseConfig, handler, logger)
-	
+
 	// Add JWT token validator if JWT auth is enabled
 	if authConfig != nil && authConfig.JWT != nil && authConfig.JWT.Enabled {
 		jwtProvider, err := createJWTProvider(authConfig.JWT, logger)
@@ -75,7 +75,7 @@ func CreateSSEAdapter(
 			logger.Info("JWT token validation enabled for SSE connections")
 		}
 	}
-	
+
 	httpAdapterInstance.WithSSEHandler(sse)
 }
 
@@ -108,7 +108,7 @@ func CreateWebSocketAdapter(
 	// For now, using default non-TLS configuration
 
 	adapter := wsAdapter.NewAdapter(wsConfig, handler, logger)
-	
+
 	// Add JWT token validator if JWT auth is enabled
 	if authConfig != nil && authConfig.JWT != nil && authConfig.JWT.Enabled {
 		jwtProvider, err := createJWTProvider(authConfig.JWT, logger)
@@ -121,7 +121,7 @@ func CreateWebSocketAdapter(
 			logger.Info("JWT token validation enabled for WebSocket connections")
 		}
 	}
-	
+
 	return adapter
 }
 

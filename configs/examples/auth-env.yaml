@@ -1,0 +1,80 @@
+# Example configuration using environment variables for sensitive data
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+      readTimeout: 30
+      writeTimeout: 30
+  backend:
+    http:
+      maxIdleConns: 100
+      maxIdleConnsPerHost: 10
+      idleConnTimeout: 90
+      keepAlive: true
+      keepAliveTimeout: 30
+      dialTimeout: 10
+      responseHeaderTimeout: 10
+  registry:
+    type: static
+    static:
+      services:
+        - name: secure-service
+          instances:
+            - id: secure-1
+              address: "127.0.0.1"
+              port: 3000
+              health: healthy
+  router:
+    rules:
+      - id: secure-route
+        path: /api/*
+        serviceName: secure-service
+        loadBalance: round_robin
+        timeout: 10
+  auth:
+    required: true
+    providers:
+      - jwt
+      - apikey
+    skipPaths:
+      - /health
+      - /metrics
+    requiredScopes:
+      - api:read
+    jwt:
+      enabled: true
+      issuer: "${JWT_ISSUER}"  # Example: https://auth.example.com
+      audience:
+        - "${JWT_AUDIENCE}"    # Example: https://api.example.com
+      signingMethod: "RS256"
+      # For production, load from file path specified in environment variable
+      publicKeyFile: "${JWT_PUBLIC_KEY_FILE}"  # Example: /run/secrets/jwt.pub
+      headerName: "Authorization"
+      scopeClaim: "scope"
+      subjectClaim: "sub"
+    apikey:
+      enabled: true
+      hashKeys: true
+      defaultScopes:
+        - api:read
+      headerName: "X-API-Key"
+      # For production, implement dynamic key loading from a secure source
+      # This could be a secrets management service, environment variables,
+      # or a secure configuration service
+      keysFile: "${API_KEYS_FILE}"  # Example: /run/secrets/api-keys.yaml
+
+# Environment variables to set:
+# JWT_ISSUER=https://auth.example.com
+# JWT_AUDIENCE=https://api.example.com
+# JWT_PUBLIC_KEY_FILE=/run/secrets/jwt.pub
+# API_KEYS_FILE=/run/secrets/api-keys.yaml
+
+# The api-keys.yaml file (loaded from secure location) would contain:
+# keys:
+#   service-key-1:
+#     key: "hashed-key-value"
+#     subject: "service-name"
+#     type: "service"
+#     scopes:
+#       - api:write

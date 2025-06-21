@@ -24,14 +24,14 @@ type mockRequest struct {
 	ctx        context.Context
 }
 
-func (m *mockRequest) ID() string                     { return m.id }
-func (m *mockRequest) Method() string                 { return m.method }
-func (m *mockRequest) Path() string                   { return m.path }
-func (m *mockRequest) URL() string                    { return m.url }
-func (m *mockRequest) RemoteAddr() string             { return m.remoteAddr }
-func (m *mockRequest) Headers() map[string][]string   { return m.headers }
-func (m *mockRequest) Body() io.ReadCloser            { return m.body }
-func (m *mockRequest) Context() context.Context       { return m.ctx }
+func (m *mockRequest) ID() string                   { return m.id }
+func (m *mockRequest) Method() string               { return m.method }
+func (m *mockRequest) Path() string                 { return m.path }
+func (m *mockRequest) URL() string                  { return m.url }
+func (m *mockRequest) RemoteAddr() string           { return m.remoteAddr }
+func (m *mockRequest) Headers() map[string][]string { return m.headers }
+func (m *mockRequest) Body() io.ReadCloser          { return m.body }
+func (m *mockRequest) Context() context.Context     { return m.ctx }
 
 // Mock response for testing
 type mockResponse struct {
@@ -40,14 +40,14 @@ type mockResponse struct {
 	body       []byte
 }
 
-func (m *mockResponse) StatusCode() int                { return m.statusCode }
-func (m *mockResponse) Headers() map[string][]string   { return m.headers }
-func (m *mockResponse) Body() io.ReadCloser           { return io.NopCloser(bytes.NewReader(m.body)) }
+func (m *mockResponse) StatusCode() int              { return m.statusCode }
+func (m *mockResponse) Headers() map[string][]string { return m.headers }
+func (m *mockResponse) Body() io.ReadCloser          { return io.NopCloser(bytes.NewReader(m.body)) }
 
 func TestNewAdapter(t *testing.T) {
 	logger := slog.Default()
 	adapter := NewAdapter(logger)
-	
+
 	if adapter == nil {
 		t.Fatal("Expected adapter, got nil")
 	}
@@ -62,7 +62,7 @@ func TestNewAdapter(t *testing.T) {
 func TestAdapter_TranscodeRequest(t *testing.T) {
 	logger := slog.Default()
 	adapter := NewAdapter(logger)
-	
+
 	tests := []struct {
 		name        string
 		request     core.Request
@@ -139,24 +139,24 @@ func TestAdapter_TranscodeRequest(t *testing.T) {
 			wantGRPC: false,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := adapter.TranscodeRequest(tt.request)
-			
+
 			if tt.wantError && err == nil {
 				t.Error("Expected error, got nil")
 			} else if !tt.wantError && err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
-			
+
 			if err == nil {
 				if tt.wantGRPC && result == tt.request {
 					t.Error("Expected request to be transcoded")
 				} else if !tt.wantGRPC && result != tt.request {
 					t.Error("Expected request to pass through unchanged")
 				}
-				
+
 				if tt.checkResult != nil {
 					tt.checkResult(t, result)
 				}
@@ -168,7 +168,7 @@ func TestAdapter_TranscodeRequest(t *testing.T) {
 func TestAdapter_TranscodeResponse(t *testing.T) {
 	logger := slog.Default()
 	adapter := NewAdapter(logger)
-	
+
 	tests := []struct {
 		name      string
 		response  core.Response
@@ -206,17 +206,17 @@ func TestAdapter_TranscodeResponse(t *testing.T) {
 			wantError: false,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := adapter.TranscodeResponse(tt.response)
-			
+
 			if tt.wantError && err == nil {
 				t.Error("Expected error, got nil")
 			} else if !tt.wantError && err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
-			
+
 			if err == nil && result == nil {
 				t.Error("Expected non-nil response")
 			}
@@ -237,11 +237,11 @@ func TestIsGRPCPath(t *testing.T) {
 		{"/health", false},
 		{"/", false},
 		{"", false},
-		{"package.Service/Method", false}, // Missing leading slash
+		{"package.Service/Method", false},  // Missing leading slash
 		{"/packageService/Method", false},  // Missing dot
 		{"/package/Service/Method", false}, // Too many slashes
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
 			result := isGRPCPath(tt.path)
@@ -255,12 +255,12 @@ func TestIsGRPCPath(t *testing.T) {
 func TestHandleGRPCWebRequest(t *testing.T) {
 	logger := slog.Default()
 	adapter := NewAdapter(logger)
-	
+
 	tests := []struct {
-		name    string
-		method  string
-		path    string
-		headers map[string][]string
+		name       string
+		method     string
+		path       string
+		headers    map[string][]string
 		wantStatus int
 	}{
 		{
@@ -268,7 +268,7 @@ func TestHandleGRPCWebRequest(t *testing.T) {
 			method: "OPTIONS",
 			path:   "/package.Service/Method",
 			headers: map[string][]string{
-				"Origin": {"http://localhost:3000"},
+				"Origin":                        {"http://localhost:3000"},
 				"Access-Control-Request-Method": {"POST"},
 			},
 			wantStatus: http.StatusOK,
@@ -283,13 +283,13 @@ func TestHandleGRPCWebRequest(t *testing.T) {
 			wantStatus: http.StatusOK,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Test preflight handling
 			if tt.method == "OPTIONS" {
 				headers := adapter.HandleGRPCWebPreflight()
-				
+
 				// Check CORS headers
 				if headers["Access-Control-Allow-Origin"][0] != "*" {
 					t.Error("Expected wildcard origin")
@@ -319,7 +319,7 @@ func TestTranscodedRequest(t *testing.T) {
 		body: io.NopCloser(bytes.NewReader([]byte(`{"name": "test"}`))),
 		ctx:  context.Background(),
 	}
-	
+
 	grpcReq := &grpcConnector.GRPCRequest{
 		Service: "package.Service",
 		Method:  "CreateUser",
@@ -328,12 +328,12 @@ func TestTranscodedRequest(t *testing.T) {
 		},
 		Body: []byte("grpc data"),
 	}
-	
+
 	transcoded := &transcodedRequest{
 		original: original,
 		grpcReq:  grpcReq,
 	}
-	
+
 	// Test that transcoded request preserves original metadata
 	if transcoded.ID() != original.ID() {
 		t.Errorf("Expected ID %s, got %s", original.ID(), transcoded.ID())
@@ -344,7 +344,7 @@ func TestTranscodedRequest(t *testing.T) {
 	if transcoded.Context() != original.Context() {
 		t.Error("Expected same context")
 	}
-	
+
 	// Test that transcoded request uses gRPC data
 	if transcoded.Method() != "POST" {
 		t.Errorf("Expected method POST, got %s", transcoded.Method())

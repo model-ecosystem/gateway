@@ -3,7 +3,7 @@ package ratelimit
 import (
 	"context"
 	"strings"
-	
+
 	"gateway/internal/core"
 	"gateway/pkg/errors"
 )
@@ -119,12 +119,12 @@ func matchPath(requestPath, pattern string) bool {
 	if requestPath == pattern {
 		return true
 	}
-	
+
 	// Wildcard match
 	if strings.HasSuffix(pattern, "*") {
 		prefix := strings.TrimSuffix(pattern, "*")
 		return strings.HasPrefix(requestPath, prefix)
 	}
-	
+
 	return false
 }

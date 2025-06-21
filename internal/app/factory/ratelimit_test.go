@@ -10,11 +10,11 @@ import (
 
 func TestCreateRateLimitMiddleware(t *testing.T) {
 	logger := slog.Default()
-	
+
 	tests := []struct {
-		name     string
-		config   *config.Router
-		wantNil  bool
+		name    string
+		config  *config.Router
+		wantNil bool
 	}{
 		{
 			name: "no rate limiting configured",
@@ -87,15 +87,15 @@ func TestCreateRateLimitMiddleware(t *testing.T) {
 			wantNil: false,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			middleware := CreateRateLimitMiddleware(tt.config, nil, logger)
-			
+
 			if tt.wantNil && middleware != nil {
 				t.Error("expected nil middleware, got non-nil")
 			}
-			
+
 			if !tt.wantNil && middleware == nil {
 				t.Error("expected non-nil middleware, got nil")
 			}
@@ -105,7 +105,7 @@ func TestCreateRateLimitMiddleware(t *testing.T) {
 
 func TestCreateGlobalRateLimitMiddleware(t *testing.T) {
 	logger := slog.Default()
-	
+
 	tests := []struct {
 		name    string
 		rate    int
@@ -137,15 +137,15 @@ func TestCreateGlobalRateLimitMiddleware(t *testing.T) {
 			wantNil: false,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			middleware := CreateGlobalRateLimitMiddleware(tt.rate, tt.burst, nil, logger)
-			
+
 			if tt.wantNil && middleware != nil {
 				t.Error("expected nil middleware, got non-nil")
 			}
-			
+
 			if !tt.wantNil && middleware == nil {
 				t.Error("expected non-nil middleware, got nil")
 			}
@@ -185,22 +185,22 @@ func TestCreateRateLimitKeyFunc(t *testing.T) {
 			wantFunc: ratelimit.ByIP,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			keyFunc := CreateRateLimitKeyFunc(tt.keyType)
-			
+
 			// We can't directly compare functions, but we can verify
 			// we get a non-nil function
 			if keyFunc == nil {
 				t.Error("expected non-nil key function")
 			}
-			
+
 			// Test the function with a mock request
 			mockReq := &mockRequest{
 				path: "/test",
 			}
-			
+
 			key := keyFunc(mockReq)
 			if key == "" {
 				t.Error("key function returned empty key")

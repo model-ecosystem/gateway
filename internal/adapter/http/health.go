@@ -2,7 +2,7 @@ package http
 
 import (
 	"net/http"
-	
+
 	"gateway/internal/health"
 )
 
@@ -35,7 +35,7 @@ func (a *Adapter) SetupHealthRoutes(mux *http.ServeMux, config HealthConfig) {
 	mux.HandleFunc(config.HealthPath, config.HealthHandler.Health)
 	mux.HandleFunc(config.ReadyPath, config.HealthHandler.Ready)
 	mux.HandleFunc(config.LivePath, config.HealthHandler.Live)
-	
+
 	a.logger.Info("Health check endpoints registered",
 		"health", config.HealthPath,
 		"ready", config.ReadyPath,

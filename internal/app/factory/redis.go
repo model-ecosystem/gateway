@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"gateway/internal/config"
 	"gateway/pkg/errors"
+	"github.com/redis/go-redis/v9"
 )
 
 // CreateRedisClient creates a Redis client from configuration
@@ -46,11 +46,11 @@ func CreateRedisClient(cfg *config.Redis, logger *slog.Logger) (*redis.Client, e
 		Addr:     fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
 		Password: cfg.Password,
 		DB:       cfg.DB,
-		
+
 		// Pool settings
 		PoolSize:     cfg.MaxActive,
 		MinIdleConns: cfg.MaxIdle,
-		
+
 		// Timeouts
 		DialTimeout:  time.Duration(cfg.ConnectTimeout) * time.Second,
 		ReadTimeout:  time.Duration(cfg.ReadTimeout) * time.Second,
@@ -114,11 +114,11 @@ func CreateRedisClusterClient(cfg *config.Redis, logger *slog.Logger) (*redis.Cl
 	opts := &redis.ClusterOptions{
 		Addrs:    cfg.ClusterNodes,
 		Password: cfg.Password,
-		
+
 		// Pool settings
 		PoolSize:     cfg.MaxActive,
 		MinIdleConns: cfg.MaxIdle,
-		
+
 		// Timeouts
 		DialTimeout:  time.Duration(cfg.ConnectTimeout) * time.Second,
 		ReadTimeout:  time.Duration(cfg.ReadTimeout) * time.Second,
@@ -187,11 +187,11 @@ func CreateRedisSentinelClient(cfg *config.Redis, logger *slog.Logger) (*redis.C
 		SentinelAddrs: cfg.SentinelNodes,
 		Password:      cfg.Password,
 		DB:            cfg.DB,
-		
+
 		// Pool settings
 		PoolSize:     cfg.MaxActive,
 		MinIdleConns: cfg.MaxIdle,
-		
+
 		// Timeouts
 		DialTimeout:  time.Duration(cfg.ConnectTimeout) * time.Second,
 		ReadTimeout:  time.Duration(cfg.ReadTimeout) * time.Second,

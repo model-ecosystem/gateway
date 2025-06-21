@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -113,7 +114,7 @@ func TestChecker_ContextCancellation(t *testing.T) {
 
 func TestHandler_Health(t *testing.T) {
 	checker := NewChecker()
-	
+
 	// Register checks
 	checker.RegisterCheck("healthy", func(ctx context.Context) error {
 		return nil
@@ -160,7 +161,7 @@ func TestHandler_Health(t *testing.T) {
 
 func TestHandler_Ready(t *testing.T) {
 	checker := NewChecker()
-	
+
 	// Register a healthy check
 	checker.RegisterCheck("database", func(ctx context.Context) error {
 		return nil
@@ -213,5 +214,64 @@ func TestHandler_Live(t *testing.T) {
 
 	if status, ok := liveResp["status"].(string); !ok || status != "ok" {
 		t.Error("Expected status to be 'ok'")
+	}
+}
+
+func TestChecker_ConcurrentCheckHealth(t *testing.T) {
+	checker := NewChecker()
+
+	// Register multiple checks that take some time
+	for i := 0; i < 10; i++ {
+		name := fmt.Sprintf("check-%d", i)
+		checker.RegisterCheck(name, func(ctx context.Context) error {
+			// Simulate some work
+			time.Sleep(10 * time.Millisecond)
+			return nil
+		})
+	}
+
+	// Run concurrent health checks
+	ctx := context.Background()
+	concurrency := 100
+	resultsChan := make(chan map[string]CheckResult, concurrency)
+	errorsChan := make(chan error, concurrency)
+
+	for i := 0; i < concurrency; i++ {
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					errorsChan <- fmt.Errorf("panic: %v", r)
+				}
+			}()
+
+			results := checker.CheckHealth(ctx)
+			resultsChan <- results
+		}()
+	}
+
+	// Collect results
+	var successCount int
+	for i := 0; i < concurrency; i++ {
+		select {
+		case err := <-errorsChan:
+			t.Errorf("Concurrent check failed: %v", err)
+		case results := <-resultsChan:
+			if len(results) != 10 {
+				t.Errorf("Expected 10 results, got %d", len(results))
+			}
+			// Verify all checks are successful
+			for name, result := range results {
+				if result.Status != StatusHealthy {
+					t.Errorf("Check %s failed: %s", name, result.Error)
+				}
+			}
+			successCount++
+		case <-time.After(5 * time.Second):
+			t.Fatal("Timeout waiting for concurrent checks")
+		}
+	}
+
+	if successCount != concurrency {
+		t.Errorf("Expected %d successful checks, got %d", concurrency, successCount)
 	}
 }

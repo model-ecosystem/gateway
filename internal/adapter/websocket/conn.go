@@ -5,9 +5,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"gateway/internal/core"
 	"gateway/pkg/errors"
+	"github.com/gorilla/websocket"
 )
 
 // conn wraps gorilla/websocket.Conn to implement core.WebSocketConn
@@ -112,7 +112,7 @@ func (c *conn) SetPingHandler(h func(data string) error) {
 	c.ws.SetPingHandler(h)
 }
 
-// SetPongHandler sets the handler for pong messages  
+// SetPongHandler sets the handler for pong messages
 func (c *conn) SetPongHandler(h func(data string) error) {
 	c.ws.SetPongHandler(h)
 }

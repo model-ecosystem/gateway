@@ -9,13 +9,13 @@ import (
 type LimiterStore interface {
 	// Allow checks if a request is allowed for the given key
 	Allow(ctx context.Context, key string, limit, burst int, window time.Duration) (allowed bool, remaining int, resetAt time.Time, err error)
-	
+
 	// AllowN checks if n requests are allowed for the given key
 	AllowN(ctx context.Context, key string, n, limit, burst int, window time.Duration) (allowed bool, remaining int, resetAt time.Time, err error)
-	
+
 	// Reset resets the counter for the given key
 	Reset(ctx context.Context, key string) error
-	
+
 	// Close closes the store and releases resources
 	Close() error
 }

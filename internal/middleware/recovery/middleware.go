@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"runtime/debug"
-	
+
 	"gateway/internal/core"
 	gwerrors "gateway/pkg/errors"
 )
@@ -26,25 +26,25 @@ func Middleware(config Config, logger *slog.Logger) core.Middleware {
 				if r := recover(); r != nil {
 					// Get stack trace
 					stack := debug.Stack()
-					
+
 					// Log the panic
 					logger.Error("panic recovered",
 						"panic", r,
 						"path", req.Path(),
 						"method", req.Method(),
 					)
-					
+
 					if config.StackTrace {
 						logger.Error("stack trace",
 							"stack", string(stack),
 						)
 					}
-					
+
 					// Call panic handler if configured
 					if config.PanicHandler != nil {
 						config.PanicHandler(ctx, r, stack)
 					}
-					
+
 					// Convert panic to error
 					err = &gwerrors.Error{
 						Type:    gwerrors.ErrorTypeInternal,
@@ -55,7 +55,7 @@ func Middleware(config Config, logger *slog.Logger) core.Middleware {
 					}
 				}
 			}()
-			
+
 			// Call next handler
 			return next(ctx, req)
 		}

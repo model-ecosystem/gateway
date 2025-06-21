@@ -13,7 +13,7 @@ import (
 func TestNewTranscoder(t *testing.T) {
 	logger := slog.Default()
 	transcoder := NewTranscoder(logger)
-	
+
 	if transcoder == nil {
 		t.Fatal("Expected transcoder, got nil")
 	}
@@ -25,7 +25,7 @@ func TestNewTranscoder(t *testing.T) {
 func TestTranscoder_HTTPToGRPC(t *testing.T) {
 	logger := slog.Default()
 	transcoder := NewTranscoder(logger)
-	
+
 	tests := []struct {
 		name      string
 		request   *mockRequest
@@ -113,16 +113,16 @@ func TestTranscoder_HTTPToGRPC(t *testing.T) {
 			wantError: true,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := transcoder.HTTPToGRPC(tt.request)
-			
+
 			if (err != nil) != tt.wantError {
 				t.Errorf("HTTPToGRPC() error = %v, wantError %v", err, tt.wantError)
 				return
 			}
-			
+
 			if !tt.wantError && got != nil {
 				if got.Service != tt.want.Service {
 					t.Errorf("Service = %v, want %v", got.Service, tt.want.Service)
@@ -144,7 +144,7 @@ func TestTranscoder_HTTPToGRPC(t *testing.T) {
 func TestTranscoder_GRPCToHTTP(t *testing.T) {
 	logger := slog.Default()
 	transcoder := NewTranscoder(logger)
-	
+
 	tests := []struct {
 		name    string
 		resp    []byte
@@ -193,11 +193,11 @@ func TestTranscoder_GRPCToHTTP(t *testing.T) {
 			},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := transcoder.GRPCToHTTP(tt.resp, tt.headers)
-			
+
 			if got.StatusCode != tt.want.StatusCode {
 				t.Errorf("StatusCode = %v, want %v", got.StatusCode, tt.want.StatusCode)
 			}
@@ -220,18 +220,18 @@ func TestHTTPResponse_ToResponse(t *testing.T) {
 		},
 		Body: []byte(`{"result": "ok"}`),
 	}
-	
+
 	resp := httpResp.ToResponse()
-	
+
 	if resp.StatusCode() != httpResp.StatusCode {
 		t.Errorf("StatusCode() = %v, want %v", resp.StatusCode(), httpResp.StatusCode)
 	}
-	
+
 	headers := resp.Headers()
 	if !reflect.DeepEqual(headers, httpResp.Headers) {
 		t.Errorf("Headers() = %v, want %v", headers, httpResp.Headers)
 	}
-	
+
 	body, err := io.ReadAll(resp.Body())
 	if err != nil {
 		t.Fatalf("Failed to read body: %v", err)

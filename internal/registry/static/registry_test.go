@@ -53,12 +53,12 @@ func TestNewRegistry(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			registry, err := NewRegistry(tt.config)
-			
+
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewRegistry() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			
+
 			if !tt.wantErr && registry == nil {
 				t.Error("NewRegistry() returned nil registry")
 			}
@@ -135,16 +135,16 @@ func TestRegistryGetService(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			instances, err := registry.GetService(tt.serviceName)
-			
+
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetService() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			
+
 			if len(instances) != tt.wantCount {
 				t.Errorf("GetService() returned %d instances, want %d", len(instances), tt.wantCount)
 			}
-			
+
 			// Verify instance conversion
 			if tt.checkHealthy && len(instances) > 0 {
 				for _, inst := range instances {
@@ -159,9 +159,9 @@ func TestRegistryGetService(t *testing.T) {
 
 func TestInstanceConversion(t *testing.T) {
 	tests := []struct {
-		name           string
-		instance       config.Instance
-		serviceName    string
+		name            string
+		instance        config.Instance
+		serviceName     string
 		expectedHealthy bool
 	}{
 		{
@@ -172,7 +172,7 @@ func TestInstanceConversion(t *testing.T) {
 				Port:    8080,
 				Health:  "healthy",
 			},
-			serviceName:    "test-service",
+			serviceName:     "test-service",
 			expectedHealthy: true,
 		},
 		{
@@ -183,7 +183,7 @@ func TestInstanceConversion(t *testing.T) {
 				Port:    8080,
 				Health:  "unhealthy",
 			},
-			serviceName:    "test-service",
+			serviceName:     "test-service",
 			expectedHealthy: false,
 		},
 		{
@@ -194,7 +194,7 @@ func TestInstanceConversion(t *testing.T) {
 				Port:    8080,
 				Health:  "unknown",
 			},
-			serviceName:    "test-service",
+			serviceName:     "test-service",
 			expectedHealthy: false,
 		},
 	}
@@ -202,23 +202,23 @@ func TestInstanceConversion(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			serviceInstance := tt.instance.ToServiceInstance(tt.serviceName)
-			
+
 			if serviceInstance.ID != tt.instance.ID {
 				t.Errorf("ID mismatch: got %s, want %s", serviceInstance.ID, tt.instance.ID)
 			}
-			
+
 			if serviceInstance.Name != tt.serviceName {
 				t.Errorf("Name mismatch: got %s, want %s", serviceInstance.Name, tt.serviceName)
 			}
-			
+
 			if serviceInstance.Address != tt.instance.Address {
 				t.Errorf("Address mismatch: got %s, want %s", serviceInstance.Address, tt.instance.Address)
 			}
-			
+
 			if serviceInstance.Port != tt.instance.Port {
 				t.Errorf("Port mismatch: got %d, want %d", serviceInstance.Port, tt.instance.Port)
 			}
-			
+
 			if serviceInstance.Healthy != tt.expectedHealthy {
 				t.Errorf("Healthy mismatch: got %v, want %v", serviceInstance.Healthy, tt.expectedHealthy)
 			}

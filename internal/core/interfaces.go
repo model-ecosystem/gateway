@@ -107,4 +107,5 @@ type SessionAffinityConfig struct {
 	CookieName string        `yaml:"cookieName,omitempty"`
 	HeaderName string        `yaml:"headerName,omitempty"`
 	QueryParam string        `yaml:"queryParam,omitempty"`
+	MaxEntries int           `yaml:"maxEntries,omitempty"` // Maximum number of sessions to track
 }

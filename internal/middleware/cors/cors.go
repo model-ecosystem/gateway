@@ -67,19 +67,19 @@ func New(config Config) *CORS {
 	if config.OptionsSuccessStatus == 0 {
 		config.OptionsSuccessStatus = http.StatusNoContent
 	}
-	
+
 	// Pre-process allowed origins for faster lookup
 	allowedOrigins := make(map[string]bool)
 	for _, origin := range config.AllowedOrigins {
 		allowedOrigins[strings.ToLower(origin)] = true
 	}
-	
+
 	// Pre-process allowed headers for faster lookup
 	allowedHeaders := make(map[string]bool)
 	for _, header := range config.AllowedHeaders {
 		allowedHeaders[strings.ToLower(header)] = true
 	}
-	
+
 	return &CORS{
 		config:         config,
 		allowedOrigins: allowedOrigins,
@@ -91,7 +91,7 @@ func New(config Config) *CORS {
 func (c *CORS) Handler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
-		
+
 		// Check if this is a preflight request
 		if r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != "" {
 			c.handlePreflight(w, r, origin)
@@ -101,7 +101,7 @@ func (c *CORS) Handler(next http.Handler) http.Handler {
 		} else {
 			c.handleActualRequest(w, r, origin)
 		}
-		
+
 		next.ServeHTTP(w, r)
 	})
 }
@@ -109,23 +109,23 @@ func (c *CORS) Handler(next http.Handler) http.Handler {
 // handlePreflight handles CORS preflight requests
 func (c *CORS) handlePreflight(w http.ResponseWriter, r *http.Request, origin string) {
 	headers := w.Header()
-	
+
 	// Check origin
 	if c.isOriginAllowed(origin) {
 		headers.Set("Access-Control-Allow-Origin", origin)
 		headers.Add("Vary", "Origin")
-		
+
 		if c.config.AllowCredentials {
 			headers.Set("Access-Control-Allow-Credentials", "true")
 		}
 	}
-	
+
 	// Handle request method
 	reqMethod := r.Header.Get("Access-Control-Request-Method")
 	if c.isMethodAllowed(reqMethod) {
 		headers.Set("Access-Control-Allow-Methods", strings.Join(c.config.AllowedMethods, ", "))
 	}
-	
+
 	// Handle request headers
 	reqHeaders := r.Header.Get("Access-Control-Request-Headers")
 	if reqHeaders != "" {
@@ -133,12 +133,12 @@ func (c *CORS) handlePreflight(w http.ResponseWriter, r *http.Request, origin st
 			headers.Set("Access-Control-Allow-Headers", reqHeaders)
 		}
 	}
-	
+
 	// Set max age
 	if c.config.MaxAge > 0 {
 		headers.Set("Access-Control-Max-Age", strconv.Itoa(c.config.MaxAge))
 	}
-	
+
 	// Write status for OPTIONS request
 	if !c.config.OptionsPassthrough {
 		w.WriteHeader(c.config.OptionsSuccessStatus)
@@ -148,17 +148,17 @@ func (c *CORS) handlePreflight(w http.ResponseWriter, r *http.Request, origin st
 // handleActualRequest handles actual CORS requests (not preflight)
 func (c *CORS) handleActualRequest(w http.ResponseWriter, r *http.Request, origin string) {
 	headers := w.Header()
-	
+
 	// Check origin
 	if c.isOriginAllowed(origin) {
 		headers.Set("Access-Control-Allow-Origin", origin)
 		headers.Add("Vary", "Origin")
-		
+
 		if c.config.AllowCredentials {
 			headers.Set("Access-Control-Allow-Credentials", "true")
 		}
 	}
-	
+
 	// Expose headers
 	if len(c.config.ExposedHeaders) > 0 {
 		headers.Set("Access-Control-Expose-Headers", strings.Join(c.config.ExposedHeaders, ", "))
@@ -170,12 +170,12 @@ func (c *CORS) isOriginAllowed(origin string) bool {
 	if origin == "" {
 		return false
 	}
-	
+
 	// Check for wildcard
 	if c.allowedOrigins["*"] {
 		return true
 	}
-	
+
 	// Check exact match
 	return c.allowedOrigins[strings.ToLower(origin)]
 }
@@ -196,7 +196,7 @@ func (c *CORS) areHeadersAllowed(headers string) bool {
 	if c.allowedHeaders["*"] {
 		return true
 	}
-	
+
 	// Check each requested header
 	requested := strings.Split(headers, ",")
 	for _, header := range requested {
@@ -205,6 +205,6 @@ func (c *CORS) areHeadersAllowed(headers string) bool {
 			return false
 		}
 	}
-	
+
 	return true
 }

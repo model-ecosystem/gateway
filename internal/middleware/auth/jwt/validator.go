@@ -118,7 +118,7 @@ func (v *TokenValidator) scheduleRecheck(ctx context.Context, connectionID strin
 		// Check if token will expire soon
 		if authInfo.ExpiresAt != nil {
 			remaining := time.Until(*authInfo.ExpiresAt)
-			
+
 			if remaining <= 5*time.Second {
 				// Token expires very soon, check every second
 				v.scheduleRecheck(ctx, connectionID, token, onExpired, 1*time.Second)
@@ -169,7 +169,7 @@ func (v *TokenValidator) StopAll() {
 // ExtractTokenFromRequest extracts JWT token from a request
 func ExtractTokenFromRequest(req core.Request) (string, error) {
 	headers := req.Headers()
-	
+
 	// Check Authorization header
 	if authHeaders, ok := headers["Authorization"]; ok && len(authHeaders) > 0 {
 		authHeader := authHeaders[0]
@@ -192,7 +192,7 @@ func ExtractTokenFromRequest(req core.Request) (string, error) {
 
 	// For WebSocket/SSE, we might need to check query parameters
 	// This would require parsing the URL, which we can do from req.URL()
-	
+
 	return "", errors.NewError(errors.ErrorTypeUnauthorized, "no token found in request")
 }
 

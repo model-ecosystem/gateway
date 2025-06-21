@@ -4,7 +4,7 @@ import (
 	"context"
 	"io"
 	"testing"
-	
+
 	"gateway/internal/core"
 )
 
@@ -20,14 +20,14 @@ type mockRequest struct {
 	ctx     context.Context
 }
 
-func (r *mockRequest) ID() string                      { return r.id }
-func (r *mockRequest) Method() string                  { return r.method }
-func (r *mockRequest) Path() string                    { return r.path }
-func (r *mockRequest) URL() string                     { return r.url }
-func (r *mockRequest) RemoteAddr() string              { return r.remote }
-func (r *mockRequest) Headers() map[string][]string    { return r.headers }
-func (r *mockRequest) Body() io.ReadCloser             { return r.body }
-func (r *mockRequest) Context() context.Context        { return r.ctx }
+func (r *mockRequest) ID() string                   { return r.id }
+func (r *mockRequest) Method() string               { return r.method }
+func (r *mockRequest) Path() string                 { return r.path }
+func (r *mockRequest) URL() string                  { return r.url }
+func (r *mockRequest) RemoteAddr() string           { return r.remote }
+func (r *mockRequest) Headers() map[string][]string { return r.headers }
+func (r *mockRequest) Body() io.ReadCloser          { return r.body }
+func (r *mockRequest) Context() context.Context     { return r.ctx }
 
 func TestCookieExtractor(t *testing.T) {
 	tests := []struct {
@@ -83,7 +83,7 @@ func TestCookieExtractor(t *testing.T) {
 			want: "default123",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := &mockRequest{headers: tt.headers}
@@ -134,7 +134,7 @@ func TestHeaderExtractor(t *testing.T) {
 			want: "first",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := &mockRequest{headers: tt.headers}
@@ -185,7 +185,7 @@ func TestQueryExtractor(t *testing.T) {
 			want:      "",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := &mockRequest{url: tt.url}
@@ -273,7 +273,7 @@ func TestNewExtractor(t *testing.T) {
 			want: "default123",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			extractor := NewExtractor(tt.config)
@@ -327,7 +327,7 @@ func TestParseCookies(t *testing.T) {
 			want:   map[string]string{},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := parseCookies(tt.header)

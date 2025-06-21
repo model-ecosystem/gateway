@@ -2,11 +2,11 @@ package factory
 
 import (
 	"net/http"
-	
+
 	"gateway/internal/config"
+	"gateway/internal/core"
 	"gateway/internal/metrics"
 	metricsMiddleware "gateway/internal/middleware/metrics"
-	"gateway/internal/core"
 )
 
 // CreateMetrics creates a new metrics instance

@@ -7,11 +7,11 @@ import (
 	"net/http"
 	"time"
 
+	"gateway/internal/config"
 	"gateway/internal/connector"
 	grpcConnector "gateway/internal/connector/grpc"
 	sseConnector "gateway/internal/connector/sse"
 	wsConnector "gateway/internal/connector/websocket"
-	"gateway/internal/config"
 	"gateway/pkg/errors"
 )
 
@@ -93,19 +93,19 @@ func CreateSSEConnector(cfg *config.SSEBackend, client *http.Client, logger *slo
 // CreateWebSocketConnector creates a WebSocket backend connector
 func CreateWebSocketConnector(cfg *config.WebSocketBackend, logger *slog.Logger) *wsConnector.Connector {
 	wsConfig := &wsConnector.Config{
-		HandshakeTimeout:       10 * time.Second,
-		ReadTimeout:            60 * time.Second,
-		WriteTimeout:           60 * time.Second,
-		ReadBufferSize:         4096,
-		WriteBufferSize:        4096,
-		MaxMessageSize:         1024 * 1024,
-		MaxConnections:         10,
-		ConnectionTimeout:      10 * time.Second,
-		PingInterval:           30 * time.Second,
-		PongTimeout:            10 * time.Second,
-		CloseTimeout:           5 * time.Second,
-		EnableCompression:      false,
-		CompressionLevel:       0,
+		HandshakeTimeout:  10 * time.Second,
+		ReadTimeout:       60 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		ReadBufferSize:    4096,
+		WriteBufferSize:   4096,
+		MaxMessageSize:    1024 * 1024,
+		MaxConnections:    10,
+		ConnectionTimeout: 10 * time.Second,
+		PingInterval:      30 * time.Second,
+		PongTimeout:       10 * time.Second,
+		CloseTimeout:      5 * time.Second,
+		EnableCompression: false,
+		CompressionLevel:  0,
 	}
 
 	if cfg != nil {
@@ -207,6 +207,6 @@ func CreateGRPCConnector(logger *slog.Logger) *grpcConnector.Connector {
 		RetryTimeout:          5 * time.Second,
 		TLS:                   false,
 	}
-	
+
 	return grpcConnector.New(grpcConfig, logger)
 }

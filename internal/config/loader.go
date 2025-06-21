@@ -3,21 +3,21 @@ package config
 import (
 	"fmt"
 	"os"
-	
-	"gopkg.in/yaml.v3"
+
 	"gateway/pkg/errors"
+	"gopkg.in/yaml.v3"
 )
 
 // Loader loads configuration from file
 type Loader struct {
-	path string
+	path       string
 	envEnabled bool
 }
 
 // NewLoader creates a config loader
 func NewLoader(path string) *Loader {
 	return &Loader{
-		path: path,
+		path:       path,
 		envEnabled: true, // Enable env vars by default
 	}
 }
@@ -39,14 +39,14 @@ func (l *Loader) Load() (*Config, error) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, errors.NewError(errors.ErrorTypeInternal, "failed to parse config").WithCause(err)
 	}
-	
+
 	// Override with environment variables if enabled
 	if l.envEnabled {
 		if err := LoadEnv(&cfg); err != nil {
 			return nil, errors.NewError(errors.ErrorTypeInternal, "failed to load env vars").WithCause(err)
 		}
 	}
-	
+
 	// Validate configuration
 	if err := l.validate(&cfg); err != nil {
 		return nil, errors.NewError(errors.ErrorTypeBadRequest, "invalid configuration").WithCause(err)
@@ -61,11 +61,11 @@ func (l *Loader) validate(cfg *Config) error {
 	if cfg.Gateway.Frontend.HTTP.Port == 0 {
 		return errors.NewError(errors.ErrorTypeBadRequest, "frontend HTTP port is required")
 	}
-	
+
 	if cfg.Gateway.Registry.Type == "" {
 		return errors.NewError(errors.ErrorTypeBadRequest, "registry type is required")
 	}
-	
+
 	// Validate registry
 	switch cfg.Gateway.Registry.Type {
 	case "static":
@@ -79,12 +79,12 @@ func (l *Loader) validate(cfg *Config) error {
 	default:
 		return fmt.Errorf("unknown registry type: %s", cfg.Gateway.Registry.Type)
 	}
-	
+
 	// Validate routes
 	if len(cfg.Gateway.Router.Rules) == 0 {
 		return fmt.Errorf("at least one route rule is required")
 	}
-	
+
 	for i, rule := range cfg.Gateway.Router.Rules {
 		if rule.ID == "" {
 			return fmt.Errorf("route rule %d: ID is required", i)
@@ -96,6 +96,6 @@ func (l *Loader) validate(cfg *Config) error {
 			return fmt.Errorf("route rule %d: service name is required", i)
 		}
 	}
-	
+
 	return nil
 }

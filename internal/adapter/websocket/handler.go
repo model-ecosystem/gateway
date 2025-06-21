@@ -60,7 +60,15 @@ func (h *Handler) Handle(ctx context.Context, req core.Request) (core.Response, 
 
 	// Add X-Forwarded headers
 	headers.Set("X-Forwarded-For", req.RemoteAddr())
-	headers.Set("X-Forwarded-Proto", "ws")
+
+	// Set X-Forwarded-Proto based on incoming request
+	if proto := req.Headers()["X-Forwarded-Proto"]; len(proto) > 0 && proto[0] == "https" {
+		// If original request was HTTPS, use wss
+		headers.Set("X-Forwarded-Proto", "wss")
+	} else {
+		headers.Set("X-Forwarded-Proto", "ws")
+	}
+
 	headers.Set("X-Forwarded-Host", req.Headers()["Host"][0])
 
 	// Establish backend connection
@@ -109,7 +117,7 @@ func isHopByHopHeader(header string) bool {
 		"Transfer-Encoding",
 		"Upgrade",
 	}
-	
+
 	header = strings.ToLower(header)
 	for _, h := range hopByHopHeaders {
 		if strings.ToLower(h) == header {

@@ -56,9 +56,12 @@ func (b *Builder) Build() (*Server, error) {
 	httpClient := factory.CreateHTTPClient(b.config.Gateway.Backend.HTTP)
 	httpConnector := factory.CreateHTTPConnector(httpClient, b.config.Gateway.Backend.HTTP)
 
-	// Create base handler with middleware
-	baseHandler := factory.CreateBaseHandler(router, httpConnector)
-	
+	// Create gRPC connector
+	grpcConnector := factory.CreateGRPCConnector(b.logger)
+
+	// Create base handler with multi-protocol support
+	baseHandler := factory.CreateMultiProtocolHandler(router, httpConnector, grpcConnector)
+
 	// Add metrics middleware if enabled
 	var gatewayMetrics *metrics.Metrics
 	if factory.ShouldEnableMetrics(b.config.Gateway.Metrics) {
@@ -67,22 +70,22 @@ func (b *Builder) Build() (*Server, error) {
 		baseHandler = metricsMiddleware(baseHandler)
 		b.logger.Info("Metrics enabled", "path", b.config.Gateway.Metrics.Path)
 	}
-	
+
 	// Add circuit breaker middleware if enabled
 	if cbMiddleware := factory.CreateCircuitBreakerMiddleware(b.config.Gateway.CircuitBreaker, b.logger); cbMiddleware != nil {
 		baseHandler = cbMiddleware.Apply()(baseHandler)
 		b.logger.Info("Circuit breaker enabled")
 	}
-	
+
 	// Add retry middleware if enabled
 	if retryMiddleware := factory.CreateRetryMiddleware(b.config.Gateway.Retry, b.logger); retryMiddleware != nil {
 		baseHandler = retryMiddleware.Apply()(baseHandler)
 		b.logger.Info("Retry enabled")
 	}
-	
+
 	// Apply base middleware (recovery, logging, auth)
 	baseHandler = factory.ApplyMiddleware(baseHandler, b.logger, authMiddleware)
-	
+
 	// Add rate limiting middleware after basic middleware but before business logic
 	if rateLimitMiddleware := factory.CreateRateLimitMiddleware(&b.config.Gateway.Router, &b.config.Gateway, b.logger); rateLimitMiddleware != nil {
 		baseHandler = rateLimitMiddleware(baseHandler)
@@ -101,27 +104,30 @@ func (b *Builder) Build() (*Server, error) {
 		if err != nil {
 			return nil, fmt.Errorf("creating health checker: %w", err)
 		}
-		
+
 		// Use a simple service ID - could be enhanced to use hostname or config
 		serviceID := fmt.Sprintf("gateway-%d", time.Now().Unix())
 		version := "1.0.0" // Could be injected via build flags
-		
+
 		healthHandler := factory.CreateHealthHandler(cfg, healthChecker, version, serviceID)
 		httpAdapter.WithHealthHandler(healthHandler)
-		
+
 		b.logger.Info("Health checks enabled",
 			"health", cfg.HealthPath,
 			"ready", cfg.ReadyPath,
 			"live", cfg.LivePath,
 		)
 	}
-	
+
 	// Add metrics endpoint if enabled
 	if factory.ShouldEnableMetrics(b.config.Gateway.Metrics) {
 		metricsHandler := factory.CreateMetricsHandler()
 		httpAdapter.WithMetricsHandler(metricsHandler)
+		if b.config.Gateway.Metrics.Path != "" {
+			httpAdapter.WithMetricsPath(b.config.Gateway.Metrics.Path)
+		}
 	}
-	
+
 	// Add CORS support if enabled
 	if corsHandler := factory.CreateCORSHandler(b.config.Gateway.CORS, httpAdapter); corsHandler != nil {
 		httpAdapter.WithCORSHandler(corsHandler)
@@ -156,12 +162,12 @@ func (b *Builder) addSSESupport(
 ) {
 	sseConnector := factory.CreateSSEConnector(b.config.Gateway.Backend.SSE, httpClient, b.logger)
 	sseHandler := factory.CreateSSEHandler(router, sseConnector, b.logger)
-	
+
 	// Apply rate limiting if configured
 	if rateLimitMiddleware := factory.CreateRateLimitMiddleware(&b.config.Gateway.Router, &b.config.Gateway, b.logger); rateLimitMiddleware != nil {
 		sseHandler = rateLimitMiddleware(sseHandler)
 	}
-	
+
 	sseHandler = factory.ApplyMiddleware(sseHandler, b.logger, authMiddleware)
 	factory.CreateSSEAdapter(b.config.Gateway.Frontend.SSE, sseHandler, httpAdapter, b.config.Gateway.Auth, b.logger)
 }
@@ -173,12 +179,12 @@ func (b *Builder) createWebSocketAdapter(
 ) *wsAdapter.Adapter {
 	wsConnector := factory.CreateWebSocketConnector(b.config.Gateway.Backend.WebSocket, b.logger)
 	wsHandler := factory.CreateWebSocketHandler(router, wsConnector, b.logger)
-	
+
 	// Apply rate limiting if configured
 	if rateLimitMiddleware := factory.CreateRateLimitMiddleware(&b.config.Gateway.Router, &b.config.Gateway, b.logger); rateLimitMiddleware != nil {
 		wsHandler = rateLimitMiddleware(wsHandler)
 	}
-	
+
 	wsHandler = factory.ApplyMiddleware(wsHandler, b.logger, authMiddleware)
 	return factory.CreateWebSocketAdapter(b.config.Gateway.Frontend.WebSocket, wsHandler, b.config.Gateway.Auth, b.logger)
 }

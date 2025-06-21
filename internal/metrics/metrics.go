@@ -8,36 +8,36 @@ import (
 // Metrics holds all Prometheus metrics for the gateway
 type Metrics struct {
 	// HTTP metrics
-	RequestsTotal    *prometheus.CounterVec
-	RequestDuration  *prometheus.HistogramVec
-	RequestSize      *prometheus.HistogramVec
-	ResponseSize     *prometheus.HistogramVec
-	ActiveRequests   *prometheus.GaugeVec
-	
+	RequestsTotal   *prometheus.CounterVec
+	RequestDuration *prometheus.HistogramVec
+	RequestSize     *prometheus.HistogramVec
+	ResponseSize    *prometheus.HistogramVec
+	ActiveRequests  *prometheus.GaugeVec
+
 	// Backend metrics
 	BackendRequestsTotal   *prometheus.CounterVec
 	BackendRequestDuration *prometheus.HistogramVec
 	BackendErrors          *prometheus.CounterVec
-	
+
 	// WebSocket metrics
-	WebSocketConnections       *prometheus.GaugeVec
-	WebSocketConnectionsTotal  *prometheus.CounterVec
-	WebSocketMessagesSent      *prometheus.CounterVec
-	WebSocketMessagesReceived  *prometheus.CounterVec
-	
+	WebSocketConnections      *prometheus.GaugeVec
+	WebSocketConnectionsTotal *prometheus.CounterVec
+	WebSocketMessagesSent     *prometheus.CounterVec
+	WebSocketMessagesReceived *prometheus.CounterVec
+
 	// SSE metrics
 	SSEConnections      *prometheus.GaugeVec
 	SSEConnectionsTotal *prometheus.CounterVec
 	SSEEventsSent       *prometheus.CounterVec
-	
+
 	// Health check metrics
 	HealthCheckDuration *prometheus.HistogramVec
 	HealthCheckStatus   *prometheus.GaugeVec
-	
+
 	// Rate limiting metrics
 	RateLimitHits     *prometheus.CounterVec
 	RateLimitRejected *prometheus.CounterVec
-	
+
 	// Service discovery metrics
 	ServiceInstances *prometheus.GaugeVec
 }
@@ -50,7 +50,7 @@ func New() *Metrics {
 // NewWithRegistry creates a new Metrics instance with a custom registry
 func NewWithRegistry(registerer prometheus.Registerer, gatherer prometheus.Gatherer) *Metrics {
 	factory := promauto.With(registerer)
-	
+
 	return &Metrics{
 		// HTTP metrics
 		RequestsTotal: factory.NewCounterVec(
@@ -91,7 +91,7 @@ func NewWithRegistry(registerer prometheus.Registerer, gatherer prometheus.Gathe
 			},
 			[]string{"method", "path"},
 		),
-		
+
 		// Backend metrics
 		BackendRequestsTotal: factory.NewCounterVec(
 			prometheus.CounterOpts{
@@ -115,7 +115,7 @@ func NewWithRegistry(registerer prometheus.Registerer, gatherer prometheus.Gathe
 			},
 			[]string{"service", "instance", "error_type"},
 		),
-		
+
 		// WebSocket metrics
 		WebSocketConnections: factory.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -145,7 +145,7 @@ func NewWithRegistry(registerer prometheus.Registerer, gatherer prometheus.Gathe
 			},
 			[]string{"service"},
 		),
-		
+
 		// SSE metrics
 		SSEConnections: factory.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -168,7 +168,7 @@ func NewWithRegistry(registerer prometheus.Registerer, gatherer prometheus.Gathe
 			},
 			[]string{"service"},
 		),
-		
+
 		// Health check metrics
 		HealthCheckDuration: factory.NewHistogramVec(
 			prometheus.HistogramOpts{
@@ -185,7 +185,7 @@ func NewWithRegistry(registerer prometheus.Registerer, gatherer prometheus.Gathe
 			},
 			[]string{"check_name"},
 		),
-		
+
 		// Rate limiting metrics
 		RateLimitHits: factory.NewCounterVec(
 			prometheus.CounterOpts{
@@ -201,7 +201,7 @@ func NewWithRegistry(registerer prometheus.Registerer, gatherer prometheus.Gathe
 			},
 			[]string{"route", "limit_type"},
 		),
-		
+
 		// Service discovery metrics
 		ServiceInstances: factory.NewGaugeVec(
 			prometheus.GaugeOpts{

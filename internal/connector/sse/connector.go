@@ -24,7 +24,7 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		DialTimeout:      10 * time.Second,
-		ResponseTimeout:  30 * time.Second, 
+		ResponseTimeout:  30 * time.Second,
 		KeepaliveTimeout: 30 * time.Second,
 	}
 }
@@ -158,7 +158,7 @@ func (c *Connection) Close() error {
 func (c *Connection) Proxy(ctx context.Context, clientWriter core.SSEWriter) error {
 	// Start proxying events
 	eventCount := 0
-	
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -168,7 +168,7 @@ func (c *Connection) Proxy(ctx context.Context, clientWriter core.SSEWriter) err
 				"reason", ctx.Err(),
 			)
 			return errors.NewError(errors.ErrorTypeTimeout, "SSE proxy context cancelled").WithCause(ctx.Err())
-			
+
 		default:
 			event, err := c.ReadEvent()
 			if err != nil {
@@ -184,7 +184,7 @@ func (c *Connection) Proxy(ctx context.Context, clientWriter core.SSEWriter) err
 					})
 					return nil
 				}
-				
+
 				// Check for network errors indicating disconnection
 				if netErr, ok := err.(net.Error); ok {
 					c.logger.Info("SSE backend network error",
@@ -195,7 +195,7 @@ func (c *Connection) Proxy(ctx context.Context, clientWriter core.SSEWriter) err
 						"temporary", netErr.Temporary(),
 					)
 				}
-				
+
 				// Check if it's already a structured error
 				if _, ok := err.(*errors.Error); ok {
 					c.logger.Error("Error reading SSE event",
@@ -223,7 +223,7 @@ func (c *Connection) Proxy(ctx context.Context, clientWriter core.SSEWriter) err
 					// This is expected when client disconnects, not an error
 					return nil
 				}
-				
+
 				c.logger.Debug("Error writing to client",
 					"error", err,
 					"instance", c.instance.ID,
@@ -232,7 +232,7 @@ func (c *Connection) Proxy(ctx context.Context, clientWriter core.SSEWriter) err
 			}
 
 			eventCount++
-			
+
 			// Log periodic stats
 			if eventCount%100 == 0 {
 				c.logger.Debug("SSE proxy progress",

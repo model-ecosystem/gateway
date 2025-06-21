@@ -2,7 +2,7 @@ package factory
 
 import (
 	"net/http"
-	
+
 	"gateway/internal/config"
 	"gateway/internal/middleware/cors"
 )
@@ -12,7 +12,7 @@ func CreateCORSHandler(cfg *config.CORS, next http.Handler) http.Handler {
 	if cfg == nil || !cfg.Enabled {
 		return nil
 	}
-	
+
 	// Convert config to CORS config
 	corsConfig := cors.Config{
 		AllowedOrigins:       cfg.AllowedOrigins,
@@ -24,7 +24,7 @@ func CreateCORSHandler(cfg *config.CORS, next http.Handler) http.Handler {
 		OptionsPassthrough:   cfg.OptionsPassthrough,
 		OptionsSuccessStatus: cfg.OptionsSuccessStatus,
 	}
-	
+
 	// Set defaults if not specified
 	if len(corsConfig.AllowedOrigins) == 0 {
 		corsConfig.AllowedOrigins = []string{"*"}
@@ -49,7 +49,7 @@ func CreateCORSHandler(cfg *config.CORS, next http.Handler) http.Handler {
 	if corsConfig.OptionsSuccessStatus == 0 {
 		corsConfig.OptionsSuccessStatus = http.StatusNoContent
 	}
-	
+
 	corsHandler := cors.New(corsConfig)
 	return corsHandler.Handler(next)
 }

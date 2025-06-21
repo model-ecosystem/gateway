@@ -22,21 +22,21 @@ func Logging(logger *slog.Logger) core.Middleware {
 	return func(next core.Handler) core.Handler {
 		return func(ctx context.Context, req core.Request) (core.Response, error) {
 			start := time.Now()
-			
+
 			logger.Info("request",
 				"id", req.ID(),
 				"method", req.Method(),
 				"path", req.Path(),
 			)
-			
+
 			resp, err := next(ctx, req)
-			
+
 			logger.Info("response",
 				"id", req.ID(),
 				"duration", time.Since(start),
 				"error", err,
 			)
-			
+
 			return resp, err
 		}
 	}
@@ -52,7 +52,7 @@ func Recovery() core.Middleware {
 					resp = core.NewResponse(500, []byte("Internal Server Error"))
 				}
 			}()
-			
+
 			return next(ctx, req)
 		}
 	}

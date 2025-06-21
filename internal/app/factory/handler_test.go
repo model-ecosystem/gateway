@@ -109,7 +109,7 @@ func TestCreateBaseHandler(t *testing.T) {
 
 func TestApplyMiddleware(t *testing.T) {
 	logger := slog.Default()
-	
+
 	// Create base handler
 	var handlerCalled bool
 	baseHandler := func(ctx context.Context, req core.Request) (core.Response, error) {
@@ -239,7 +239,7 @@ func TestCreateRouter(t *testing.T) {
 				t.Error("Expected instance in route result")
 				return
 			}
-			
+
 			if route.Instance.Name != tt.expectedService {
 				t.Errorf("Expected service %s, got %s", tt.expectedService, route.Instance.Name)
 			}

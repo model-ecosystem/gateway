@@ -15,10 +15,10 @@ var (
 )
 
 type Response struct {
-	Server    string    `json:"server"`
-	Timestamp time.Time `json:"timestamp"`
-	Path      string    `json:"path"`
-	Method    string    `json:"method"`
+	Server    string              `json:"server"`
+	Timestamp time.Time           `json:"timestamp"`
+	Path      string              `json:"path"`
+	Method    string              `json:"method"`
 	Headers   map[string][]string `json:"headers"`
 }
 
@@ -26,7 +26,7 @@ func main() {
 	flag.Parse()
 
 	mux := http.NewServeMux()
-	
+
 	// Health check endpoint
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -55,7 +55,7 @@ func main() {
 
 	addr := fmt.Sprintf(":%d", *port)
 	log.Printf("Starting %s on %s", *name, addr)
-	
+
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatal(err)
 	}

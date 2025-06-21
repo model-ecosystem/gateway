@@ -51,27 +51,30 @@ func (c *Checker) CheckHealth(ctx context.Context) map[string]CheckResult {
 
 	results := make(map[string]CheckResult)
 	var wg sync.WaitGroup
+	var resultsMu sync.Mutex
 
 	for name, check := range checks {
 		wg.Add(1)
 		go func(name string, check Check) {
 			defer wg.Done()
-			
+
 			start := time.Now()
 			err := check(ctx)
 			duration := time.Since(start)
-			
+
 			result := CheckResult{
 				Status:   StatusHealthy,
 				Duration: duration,
 			}
-			
+
 			if err != nil {
 				result.Status = StatusUnhealthy
 				result.Error = err.Error()
 			}
-			
+
+			resultsMu.Lock()
 			results[name] = result
+			resultsMu.Unlock()
 		}(name, check)
 	}
 
@@ -88,11 +91,11 @@ type CheckResult struct {
 
 // HealthResponse represents the overall health response
 type HealthResponse struct {
-	Status     Status                  `json:"status"`
-	Timestamp  time.Time               `json:"timestamp"`
-	Checks     map[string]CheckResult  `json:"checks,omitempty"`
-	Version    string                  `json:"version,omitempty"`
-	ServiceID  string                  `json:"service_id,omitempty"`
+	Status    Status                 `json:"status"`
+	Timestamp time.Time              `json:"timestamp"`
+	Checks    map[string]CheckResult `json:"checks,omitempty"`
+	Version   string                 `json:"version,omitempty"`
+	ServiceID string                 `json:"service_id,omitempty"`
 }
 
 // Handler creates HTTP handlers for health endpoints
@@ -117,7 +120,7 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	results := h.checker.CheckHealth(ctx)
-	
+
 	// Determine overall status
 	status := StatusHealthy
 	for _, result := range results {
@@ -156,7 +159,7 @@ func (h *Handler) Ready(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	results := h.checker.CheckHealth(ctx)
-	
+
 	// Check if all critical checks pass
 	ready := true
 	for _, result := range results {

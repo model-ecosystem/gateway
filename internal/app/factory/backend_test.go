@@ -25,15 +25,15 @@ func TestCreateHTTPClient(t *testing.T) {
 		{
 			name: "custom config",
 			config: config.HTTPBackend{
-				MaxIdleConns:        200,
-				MaxIdleConnsPerHost: 20,
-				MaxConnsPerHost:     50,
-				IdleConnTimeout:     60,
-				KeepAlive:           true,
-				KeepAliveTimeout:    30,
-				DisableCompression:  true,
-				DisableHTTP2:        true,
-				DialTimeout:         5,
+				MaxIdleConns:          200,
+				MaxIdleConnsPerHost:   20,
+				MaxConnsPerHost:       50,
+				IdleConnTimeout:       60,
+				KeepAlive:             true,
+				KeepAliveTimeout:      30,
+				DisableCompression:    true,
+				DisableHTTP2:          true,
+				DialTimeout:           5,
 				ResponseHeaderTimeout: 10,
 				ExpectContinueTimeout: 1,
 				TLSHandshakeTimeout:   5,
@@ -55,7 +55,7 @@ func TestCreateHTTPClient(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := CreateHTTPClient(tt.config)
-			
+
 			if client == nil {
 				t.Fatal("Expected HTTP client, got nil")
 			}
@@ -84,17 +84,17 @@ func TestCreateHTTPConnector(t *testing.T) {
 	client := &http.Client{
 		Timeout: 30 * time.Second,
 	}
-	
+
 	config := config.HTTPBackend{
 		MaxIdleConns: 100,
 	}
-	
+
 	connector := CreateHTTPConnector(client, config)
-	
+
 	if connector == nil {
 		t.Fatal("Expected HTTP connector, got nil")
 	}
-	
+
 	// Connector doesn't have a Type() method in the interface
 	// Just verify it was created successfully
 }
@@ -103,7 +103,7 @@ func TestCreateSSEConnector(t *testing.T) {
 	client := &http.Client{
 		Timeout: 30 * time.Second,
 	}
-	
+
 	tests := []struct {
 		name   string
 		config *config.SSEBackend
@@ -124,16 +124,16 @@ func TestCreateSSEConnector(t *testing.T) {
 			},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := slog.Default()
 			connector := CreateSSEConnector(tt.config, client, logger)
-			
+
 			if connector == nil {
 				t.Fatal("Expected SSE connector, got nil")
 			}
-			
+
 			// Just verify connector was created successfully
 		})
 	}
@@ -168,16 +168,16 @@ func TestCreateWebSocketConnector(t *testing.T) {
 			},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := slog.Default()
 			connector := CreateWebSocketConnector(tt.config, logger)
-			
+
 			if connector == nil {
 				t.Fatal("Expected WebSocket connector, got nil")
 			}
-			
+
 			// Just verify connector was created successfully
 		})
 	}
@@ -224,32 +224,32 @@ func TestCreateBackendTLSConfig(t *testing.T) {
 			wantError: true,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tlsConfig, err := createBackendTLSConfig(tt.config)
-			
+
 			if tt.wantError {
 				if err == nil {
 					t.Error("Expected error, got nil")
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)
 				return
 			}
-			
+
 			if tlsConfig == nil {
 				t.Error("Expected TLS config, got nil")
 				return
 			}
-			
+
 			if tt.config.InsecureSkipVerify != tlsConfig.InsecureSkipVerify {
 				t.Errorf("InsecureSkipVerify: expected %v, got %v", tt.config.InsecureSkipVerify, tlsConfig.InsecureSkipVerify)
 			}
-			
+
 			if tt.config.ServerName != tlsConfig.ServerName {
 				t.Errorf("ServerName: expected %s, got %s", tt.config.ServerName, tlsConfig.ServerName)
 			}

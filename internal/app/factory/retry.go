@@ -3,10 +3,10 @@ package factory
 import (
 	"log/slog"
 	"time"
-	
+
 	"gateway/internal/config"
-	"gateway/internal/retry"
 	retryMiddleware "gateway/internal/middleware/retry"
+	"gateway/internal/retry"
 )
 
 // CreateRetryMiddleware creates retry middleware from config
@@ -14,24 +14,24 @@ func CreateRetryMiddleware(cfg *config.Retry, logger *slog.Logger) *retryMiddlew
 	if cfg == nil || !cfg.Enabled {
 		return nil
 	}
-	
+
 	// Convert config to middleware config
 	middlewareConfig := retryMiddleware.Config{
 		Default:  convertRetryConfig(cfg.Default),
 		Routes:   make(map[string]retry.Config),
 		Services: make(map[string]retry.Config),
 	}
-	
+
 	// Convert route-specific configs
 	for route, routeCfg := range cfg.Routes {
 		middlewareConfig.Routes[route] = convertRetryConfig(routeCfg)
 	}
-	
+
 	// Convert service-specific configs
 	for service, serviceCfg := range cfg.Services {
 		middlewareConfig.Services[service] = convertRetryConfig(serviceCfg)
 	}
-	
+
 	return retryMiddleware.New(middlewareConfig, logger)
 }
 
@@ -50,7 +50,7 @@ func convertRetryConfig(cfg config.RetryConfig) retry.Config {
 	if cfg.Multiplier <= 1 {
 		cfg.Multiplier = 2.0
 	}
-	
+
 	return retry.Config{
 		MaxAttempts:   cfg.MaxAttempts,
 		InitialDelay:  time.Duration(cfg.InitialDelay) * time.Millisecond,

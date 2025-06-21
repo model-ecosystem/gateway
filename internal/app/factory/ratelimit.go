@@ -3,7 +3,7 @@ package factory
 import (
 	"errors"
 	"log/slog"
-	
+
 	"gateway/internal/config"
 	"gateway/internal/core"
 	"gateway/internal/middleware/ratelimit"
@@ -16,10 +16,10 @@ import (
 func CreateRateLimitMiddleware(routerConfig *config.Router, gatewayConfig *config.Gateway, logger *slog.Logger) core.Middleware {
 	// Create storage factory
 	redisFactory := &RedisClientFactoryAdapter{}
-	
+
 	// Create stores based on configuration
 	stores := make(map[string]storage.LimiterStore)
-	
+
 	if gatewayConfig != nil && gatewayConfig.RateLimitStorage != nil {
 		// Create configured stores
 		for name, storeCfg := range gatewayConfig.RateLimitStorage.Stores {
@@ -31,7 +31,7 @@ func CreateRateLimitMiddleware(routerConfig *config.Router, gatewayConfig *confi
 			}
 			stores[name] = store
 		}
-		
+
 		// Ensure default store exists
 		if _, ok := stores["default"]; !ok {
 			stores["default"] = memory.NewStore(storage.DefaultConfig())
@@ -40,22 +40,22 @@ func CreateRateLimitMiddleware(routerConfig *config.Router, gatewayConfig *confi
 		// No configuration, use default memory store
 		stores["default"] = memory.NewStore(storage.DefaultConfig())
 	}
-	
+
 	// Build per-route rate limit configuration
 	rateLimitRules := make(map[string]*ratelimit.Config)
-	
+
 	for _, rule := range routerConfig.Rules {
 		// Skip routes without rate limiting
 		if rule.RateLimit <= 0 {
 			continue
 		}
-		
+
 		// Default burst to rate limit if not specified
 		burst := rule.RateLimitBurst
 		if burst <= 0 {
 			burst = rule.RateLimit
 		}
-		
+
 		// Determine which store to use
 		storeName := rule.RateLimitStorage
 		if storeName == "" {
@@ -66,7 +66,7 @@ func CreateRateLimitMiddleware(routerConfig *config.Router, gatewayConfig *confi
 				storeName = "default"
 			}
 		}
-		
+
 		store, exists := stores[storeName]
 		if !exists {
 			logger.Warn("Rate limit storage not found, using default",
@@ -75,7 +75,7 @@ func CreateRateLimitMiddleware(routerConfig *config.Router, gatewayConfig *confi
 			)
 			store = stores["default"]
 		}
-		
+
 		config := &ratelimit.Config{
 			Rate:    rule.RateLimit,
 			Burst:   burst,
@@ -83,9 +83,9 @@ func CreateRateLimitMiddleware(routerConfig *config.Router, gatewayConfig *confi
 			Logger:  logger.With("middleware", "ratelimit", "route", rule.ID),
 			Store:   store,
 		}
-		
+
 		rateLimitRules[rule.Path] = config
-		
+
 		logger.Info("Rate limiting configured for route",
 			"route", rule.ID,
 			"path", rule.Path,
@@ -94,12 +94,12 @@ func CreateRateLimitMiddleware(routerConfig *config.Router, gatewayConfig *confi
 			"storage", storeName,
 		)
 	}
-	
+
 	// Return nil if no rate limiting configured
 	if len(rateLimitRules) == 0 {
 		return nil
 	}
-	
+
 	// Create per-route rate limiter
 	return ratelimit.PerRoute(rateLimitRules)
 }
@@ -109,17 +109,17 @@ func CreateGlobalRateLimitMiddleware(rate, burst int, gatewayConfig *config.Gate
 	if rate <= 0 {
 		return nil
 	}
-	
+
 	if burst <= 0 {
 		burst = rate
 	}
-	
+
 	// Create storage
 	var store storage.LimiterStore
 	if gatewayConfig != nil && gatewayConfig.RateLimitStorage != nil && gatewayConfig.RateLimitStorage.Default != "" {
 		// Create storage factory
 		redisFactory := &RedisClientFactoryAdapter{}
-		
+
 		// Use the default storage from configuration
 		if storeCfg, ok := gatewayConfig.RateLimitStorage.Stores[gatewayConfig.RateLimitStorage.Default]; ok {
 			s, err := createStore("global", storeCfg, redisFactory, logger)
@@ -136,7 +136,7 @@ func CreateGlobalRateLimitMiddleware(rate, burst int, gatewayConfig *config.Gate
 		// No configuration, use default memory store
 		store = memory.NewStore(storage.DefaultConfig())
 	}
-	
+
 	config := &ratelimit.Config{
 		Rate:    rate,
 		Burst:   burst,
@@ -144,9 +144,9 @@ func CreateGlobalRateLimitMiddleware(rate, burst int, gatewayConfig *config.Gate
 		Logger:  logger.With("middleware", "ratelimit", "scope", "global"),
 		Store:   store,
 	}
-	
+
 	logger.Info("Global rate limiting configured", "rate", rate, "burst", burst, "storage", "configurable")
-	
+
 	return ratelimit.Middleware(config)
 }
 
@@ -156,12 +156,12 @@ func createStore(name string, cfg *config.RateLimitStore, redisFactory *RedisCli
 	case "memory", "":
 		logger.Info("Creating memory limiter store", "name", name)
 		return memory.NewStore(storage.DefaultConfig()), nil
-		
+
 	case "redis":
 		if cfg.Redis == nil {
 			return nil, errors.New("Redis configuration required for redis storage type")
 		}
-		
+
 		// Create Redis client from storage-specific config
 		client, err := redisFactory.CreateClient(cfg.Redis)
 		if err != nil {
@@ -171,14 +171,14 @@ func createStore(name string, cfg *config.RateLimitStore, redisFactory *RedisCli
 			)
 			return memory.NewStore(storage.DefaultConfig()), nil
 		}
-		
+
 		logger.Info("Creating Redis limiter store",
 			"name", name,
 			"host", cfg.Redis.Host,
 			"port", cfg.Redis.Port,
 		)
 		return redis.NewStore(client, storage.DefaultConfig()), nil
-		
+
 	default:
 		return nil, errors.New("unknown storage type: " + cfg.Type)
 	}

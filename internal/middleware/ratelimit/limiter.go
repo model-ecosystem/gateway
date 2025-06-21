@@ -6,7 +6,7 @@ import (
 	"net"
 	"sync"
 	"time"
-	
+
 	"gateway/internal/core"
 	"gateway/internal/storage"
 	"gateway/pkg/errors"
@@ -279,7 +279,7 @@ func (l *TokenBucketLimiter) AllowN(ctx context.Context, key string, n int) erro
 func (l *TokenBucketLimiter) Wait(ctx context.Context, key string) error {
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -296,7 +296,7 @@ func (l *TokenBucketLimiter) Wait(ctx context.Context, key string) error {
 func (l *TokenBucketLimiter) WaitN(ctx context.Context, key string, n int) error {
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ctx.Done():

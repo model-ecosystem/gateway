@@ -24,7 +24,7 @@ func TestRateLimitMiddlewareSimple(t *testing.T) {
 
 	// Counter for successful requests
 	successCount := 0
-	
+
 	// Create a handler that just counts successes
 	handler := func(ctx context.Context, req core.Request) (core.Response, error) {
 		successCount++
@@ -90,7 +90,7 @@ func TestPerRouteRateLimit(t *testing.T) {
 
 	// Counter for successful requests
 	successCount := 0
-	
+
 	// Create a handler that just counts successes
 	handler := func(ctx context.Context, req core.Request) (core.Response, error) {
 		successCount++

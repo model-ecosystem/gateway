@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"gateway/internal/core"
+	"github.com/gorilla/websocket"
 	"log/slog"
 )
 
@@ -21,25 +21,25 @@ func createMockWebSocketServer(t *testing.T, handler func(*websocket.Conn)) *htt
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool { return true },
 	}
-	
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			t.Fatalf("Failed to upgrade connection: %v", err)
 		}
 		defer conn.Close()
-		
+
 		if handler != nil {
 			handler(conn)
 		}
 	}))
-	
+
 	return server
 }
 
 func TestDefaultConfig(t *testing.T) {
 	config := DefaultConfig()
-	
+
 	if config.HandshakeTimeout != 10*time.Second {
 		t.Errorf("Expected handshake timeout 10s, got %v", config.HandshakeTimeout)
 	}
@@ -53,7 +53,7 @@ func TestDefaultConfig(t *testing.T) {
 
 func TestNewConnector(t *testing.T) {
 	logger := slog.Default()
-	
+
 	tests := []struct {
 		name   string
 		config *Config
@@ -70,11 +70,11 @@ func TestNewConnector(t *testing.T) {
 			},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			connector := NewConnector(tt.config, logger)
-			
+
 			if connector == nil {
 				t.Fatal("Expected connector, got nil")
 			}
@@ -90,7 +90,7 @@ func TestNewConnector(t *testing.T) {
 
 func TestConnector_Connect(t *testing.T) {
 	logger := slog.Default()
-	
+
 	tests := []struct {
 		name          string
 		serverHandler func(*websocket.Conn)
@@ -142,30 +142,30 @@ func TestConnector_Connect(t *testing.T) {
 			errorContains: "Failed to connect to WebSocket backend",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var server *httptest.Server
 			if tt.serverHandler != nil {
 				server = createMockWebSocketServer(t, tt.serverHandler)
 				defer server.Close()
-				
+
 				// Extract port from server URL
 				serverURL := strings.TrimPrefix(server.URL, "http://")
 				_, portStr, _ := net.SplitHostPort(serverURL)
 				port := 0
 				fmt.Sscanf(portStr, "%d", &port)
-				
+
 				if tt.instance.Port == 0 {
 					tt.instance.Port = port
 				}
 			}
-			
+
 			connector := NewConnector(DefaultConfig(), logger)
 			ctx := context.Background()
-			
+
 			conn, err := connector.Connect(ctx, tt.instance, tt.path, tt.headers)
-			
+
 			if tt.wantError {
 				if err == nil {
 					t.Error("Expected error, got nil")
@@ -180,7 +180,7 @@ func TestConnector_Connect(t *testing.T) {
 					t.Fatal("Expected connection, got nil")
 				}
 				defer conn.Close()
-				
+
 				// Verify connection properties
 				if conn.instance != tt.instance {
 					t.Error("Instance not set correctly")
@@ -198,12 +198,12 @@ func TestConnector_Connect(t *testing.T) {
 
 func TestConnection_ReadWriteMessage(t *testing.T) {
 	logger := slog.Default()
-	
+
 	tests := []struct {
-		name         string
-		messageType  core.WebSocketMessageType
-		messageData  []byte
-		expectError  bool
+		name        string
+		messageType core.WebSocketMessageType
+		messageData []byte
+		expectError bool
 	}{
 		{
 			name:        "text message",
@@ -221,7 +221,7 @@ func TestConnection_ReadWriteMessage(t *testing.T) {
 			messageData: []byte{},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create echo server
@@ -238,39 +238,39 @@ func TestConnection_ReadWriteMessage(t *testing.T) {
 				}
 			})
 			defer server.Close()
-			
+
 			// Extract port
 			serverURL := strings.TrimPrefix(server.URL, "http://")
 			host, portStr, _ := net.SplitHostPort(serverURL)
 			port := 0
 			fmt.Sscanf(portStr, "%d", &port)
-			
+
 			instance := &core.ServiceInstance{
 				ID:      "test",
 				Address: host,
 				Port:    port,
 			}
-			
+
 			connector := NewConnector(DefaultConfig(), logger)
 			conn, err := connector.Connect(context.Background(), instance, "/", nil)
 			if err != nil {
 				t.Fatalf("Failed to connect: %v", err)
 			}
 			defer conn.Close()
-			
+
 			// Write message
 			msg := &core.WebSocketMessage{
 				Type: tt.messageType,
 				Data: tt.messageData,
 			}
-			
+
 			err = conn.WriteMessage(msg)
 			if tt.expectError && err == nil {
 				t.Error("Expected write error, got nil")
 			} else if !tt.expectError && err != nil {
 				t.Errorf("Unexpected write error: %v", err)
 			}
-			
+
 			if !tt.expectError {
 				// Read echoed message
 				receivedMsg, err := conn.ReadMessage()
@@ -292,7 +292,7 @@ func TestConnection_ReadWriteMessage(t *testing.T) {
 func TestConnection_Proxy(t *testing.T) {
 	t.Skip("Skipping due to complex race conditions in test setup")
 	logger := slog.Default()
-	
+
 	// Create backend server that echoes with prefix
 	backendServer := createMockWebSocketServer(t, func(conn *websocket.Conn) {
 		for {
@@ -308,19 +308,19 @@ func TestConnection_Proxy(t *testing.T) {
 		}
 	})
 	defer backendServer.Close()
-	
+
 	// Extract backend port
 	serverURL := strings.TrimPrefix(backendServer.URL, "http://")
 	host, portStr, _ := net.SplitHostPort(serverURL)
 	port := 0
 	fmt.Sscanf(portStr, "%d", &port)
-	
+
 	instance := &core.ServiceInstance{
 		ID:      "backend",
 		Address: host,
 		Port:    port,
 	}
-	
+
 	// Create connector and connect to backend
 	connector := NewConnector(DefaultConfig(), logger)
 	backendConn, err := connector.Connect(context.Background(), instance, "/", nil)
@@ -328,10 +328,10 @@ func TestConnection_Proxy(t *testing.T) {
 		t.Fatalf("Failed to connect to backend: %v", err)
 	}
 	defer backendConn.Close()
-	
+
 	// Create a channel to communicate test results
 	testResults := make(chan error, 1)
-	
+
 	// Create mock client connection
 	clientServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
@@ -341,22 +341,22 @@ func TestConnection_Proxy(t *testing.T) {
 			return
 		}
 		defer conn.Close()
-		
+
 		// Create client connection wrapper
 		clientConn := &mockWebSocketConn{
 			conn: conn,
 		}
-		
+
 		// Start proxy in background
 		ctx, cancel := context.WithCancel(context.Background())
 		proxyDone := make(chan error, 1)
 		go func() {
 			proxyDone <- backendConn.Proxy(ctx, clientConn)
 		}()
-		
+
 		// Give proxy time to start and establish connections
 		time.Sleep(100 * time.Millisecond)
-		
+
 		// Send message from client
 		testMsg := []byte("hello from client")
 		if err := conn.WriteMessage(websocket.TextMessage, testMsg); err != nil {
@@ -370,7 +370,7 @@ func TestConnection_Proxy(t *testing.T) {
 			cancel()
 			return
 		}
-		
+
 		// Read response with timeout
 		conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 		_, response, err := conn.ReadMessage()
@@ -385,21 +385,21 @@ func TestConnection_Proxy(t *testing.T) {
 			cancel()
 			return
 		}
-		
+
 		expected := "backend: hello from client"
 		if string(response) != expected {
 			testResults <- fmt.Errorf("Expected %s, got %s", expected, response)
 			cancel()
 			return
 		}
-		
+
 		// Send close message
 		closeMsg := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "test complete")
 		conn.WriteControl(websocket.CloseMessage, closeMsg, time.Now().Add(time.Second))
-		
+
 		// Cancel proxy
 		cancel()
-		
+
 		// Wait for proxy to finish
 		select {
 		case <-proxyDone:
@@ -409,17 +409,17 @@ func TestConnection_Proxy(t *testing.T) {
 		}
 	}))
 	defer clientServer.Close()
-	
+
 	// Connect to client server to trigger the test
 	clientURL := strings.Replace(clientServer.URL, "http", "ws", 1)
 	conn, _, err := websocket.DefaultDialer.Dial(clientURL, nil)
 	if err != nil {
 		t.Fatalf("Failed to connect to client server: %v", err)
 	}
-	
+
 	// Keep connection open until test completes
 	defer conn.Close()
-	
+
 	// Wait for test results
 	select {
 	case err := <-testResults:
@@ -433,44 +433,44 @@ func TestConnection_Proxy(t *testing.T) {
 
 func TestConnection_Deadlines(t *testing.T) {
 	logger := slog.Default()
-	
+
 	server := createMockWebSocketServer(t, func(conn *websocket.Conn) {
 		// Keep connection open
 		time.Sleep(200 * time.Millisecond)
 	})
 	defer server.Close()
-	
+
 	// Extract port
 	serverURL := strings.TrimPrefix(server.URL, "http://")
 	host, portStr, _ := net.SplitHostPort(serverURL)
 	port := 0
 	fmt.Sscanf(portStr, "%d", &port)
-	
+
 	instance := &core.ServiceInstance{
 		ID:      "test",
 		Address: host,
 		Port:    port,
 	}
-	
+
 	connector := NewConnector(DefaultConfig(), logger)
 	conn, err := connector.Connect(context.Background(), instance, "/", nil)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 	defer conn.Close()
-	
+
 	// Test read deadline
 	deadline := time.Now().Add(50 * time.Millisecond)
 	if err := conn.SetReadDeadline(deadline); err != nil {
 		t.Errorf("Failed to set read deadline: %v", err)
 	}
-	
+
 	// Try to read, should timeout
 	_, err = conn.ReadMessage()
 	if err == nil {
 		t.Error("Expected timeout error on read")
 	}
-	
+
 	// Test write deadline
 	deadline = time.Now().Add(50 * time.Millisecond)
 	if err := conn.SetWriteDeadline(deadline); err != nil {
@@ -480,21 +480,21 @@ func TestConnection_Deadlines(t *testing.T) {
 
 func TestConnection_Handlers(t *testing.T) {
 	logger := slog.Default()
-	
+
 	pingReceived := false
-	
+
 	server := createMockWebSocketServer(t, func(conn *websocket.Conn) {
 		// Send ping
 		if err := conn.WriteMessage(websocket.PingMessage, []byte("ping")); err != nil {
 			t.Errorf("Failed to send ping: %v", err)
 		}
-		
+
 		// Wait for pong
 		conn.SetPongHandler(func(data string) error {
 			// Pong received on server side
 			return nil
 		})
-		
+
 		// Keep reading
 		for {
 			_, _, err := conn.ReadMessage()
@@ -504,45 +504,45 @@ func TestConnection_Handlers(t *testing.T) {
 		}
 	})
 	defer server.Close()
-	
+
 	// Extract port
 	serverURL := strings.TrimPrefix(server.URL, "http://")
 	host, portStr, _ := net.SplitHostPort(serverURL)
 	port := 0
 	fmt.Sscanf(portStr, "%d", &port)
-	
+
 	instance := &core.ServiceInstance{
 		ID:      "test",
 		Address: host,
 		Port:    port,
 	}
-	
+
 	connector := NewConnector(DefaultConfig(), logger)
 	conn, err := connector.Connect(context.Background(), instance, "/", nil)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 	defer conn.Close()
-	
+
 	// Set ping handler
 	conn.SetPingHandler(func(data string) error {
 		pingReceived = true
 		return nil
 	})
-	
+
 	// Set pong handler
 	conn.SetPongHandler(func(data string) error {
 		// Pong received on client side
 		return nil
 	})
-	
+
 	// Read to trigger handlers
 	conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 	conn.ReadMessage()
-	
+
 	// Give time for handlers
 	time.Sleep(50 * time.Millisecond)
-	
+
 	if !pingReceived {
 		t.Error("Ping handler not called")
 	}
@@ -560,13 +560,13 @@ func TestMapMessageType(t *testing.T) {
 		{websocket.PongMessage, core.WebSocketPongMessage},
 		{999, core.WebSocketTextMessage}, // Unknown type
 	}
-	
+
 	for _, tt := range tests {
 		result := mapMessageType(tt.gorilla)
 		if result != tt.core {
 			t.Errorf("mapMessageType(%d) = %v, want %v", tt.gorilla, result, tt.core)
 		}
-		
+
 		// Test reverse mapping
 		reverse := mapMessageTypeReverse(tt.core)
 		if tt.gorilla != 999 && reverse != tt.gorilla {
@@ -577,7 +577,7 @@ func TestMapMessageType(t *testing.T) {
 
 func TestConnection_Concurrent(t *testing.T) {
 	logger := slog.Default()
-	
+
 	// Create server that handles multiple messages
 	var serverMu sync.Mutex
 	server := createMockWebSocketServer(t, func(conn *websocket.Conn) {
@@ -596,29 +596,29 @@ func TestConnection_Concurrent(t *testing.T) {
 		}
 	})
 	defer server.Close()
-	
+
 	// Extract port
 	serverURL := strings.TrimPrefix(server.URL, "http://")
 	host, portStr, _ := net.SplitHostPort(serverURL)
 	port := 0
 	fmt.Sscanf(portStr, "%d", &port)
-	
+
 	instance := &core.ServiceInstance{
 		ID:      "test",
 		Address: host,
 		Port:    port,
 	}
-	
+
 	connector := NewConnector(DefaultConfig(), logger)
 	conn, err := connector.Connect(context.Background(), instance, "/", nil)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 	defer conn.Close()
-	
+
 	// Test sequential operations instead of concurrent to avoid WebSocket protocol violations
 	const numMessages = 10
-	
+
 	for i := 0; i < numMessages; i++ {
 		// Write message
 		msg := &core.WebSocketMessage{
@@ -629,14 +629,14 @@ func TestConnection_Concurrent(t *testing.T) {
 			t.Errorf("Failed to write message %d: %v", i, err)
 			continue
 		}
-		
+
 		// Read echo
 		reply, err := conn.ReadMessage()
 		if err != nil {
 			t.Errorf("Failed to read message %d: %v", i, err)
 			continue
 		}
-		
+
 		if string(reply.Data) != string(msg.Data) {
 			t.Errorf("Message %d mismatch: expected %s, got %s", i, msg.Data, reply.Data)
 		}

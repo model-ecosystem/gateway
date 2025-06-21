@@ -62,11 +62,11 @@ type SubjectType string
 
 const (
 	// SubjectTypeUser represents a human user subject
-	SubjectTypeUser    SubjectType = "user"
+	SubjectTypeUser SubjectType = "user"
 	// SubjectTypeService represents a service-based subject
 	SubjectTypeService SubjectType = "service"
 	// SubjectTypeDevice represents a device-based subject
-	SubjectTypeDevice  SubjectType = "device"
+	SubjectTypeDevice SubjectType = "device"
 )
 
 // Extractor extracts credentials from a request

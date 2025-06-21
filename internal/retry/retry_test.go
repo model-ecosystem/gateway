@@ -15,13 +15,13 @@ func TestRetrier_Do(t *testing.T) {
 			InitialDelay: 10 * time.Millisecond,
 		}
 		r := New(config)
-		
+
 		attempts := 0
 		err := r.Do(context.Background(), func(ctx context.Context) error {
 			attempts++
 			return nil
 		})
-		
+
 		if err != nil {
 			t.Errorf("Expected no error, got: %v", err)
 		}
@@ -29,14 +29,14 @@ func TestRetrier_Do(t *testing.T) {
 			t.Errorf("Expected 1 attempt, got: %d", attempts)
 		}
 	})
-	
+
 	t.Run("success after retry", func(t *testing.T) {
 		config := Config{
 			MaxAttempts:  3,
 			InitialDelay: 10 * time.Millisecond,
 		}
 		r := New(config)
-		
+
 		attempts := 0
 		err := r.Do(context.Background(), func(ctx context.Context) error {
 			attempts++
@@ -45,7 +45,7 @@ func TestRetrier_Do(t *testing.T) {
 			}
 			return nil
 		})
-		
+
 		if err != nil {
 			t.Errorf("Expected no error, got: %v", err)
 		}
@@ -53,21 +53,21 @@ func TestRetrier_Do(t *testing.T) {
 			t.Errorf("Expected 3 attempts, got: %d", attempts)
 		}
 	})
-	
+
 	t.Run("exhausted retries", func(t *testing.T) {
 		config := Config{
 			MaxAttempts:  2,
 			InitialDelay: 10 * time.Millisecond,
 		}
 		r := New(config)
-		
+
 		attempts := 0
 		testErr := errors.New("persistent error")
 		err := r.Do(context.Background(), func(ctx context.Context) error {
 			attempts++
 			return testErr
 		})
-		
+
 		var retryErr *Error
 		if !errors.As(err, &retryErr) {
 			t.Errorf("Expected retry error, got: %v", err)
@@ -82,21 +82,21 @@ func TestRetrier_Do(t *testing.T) {
 			t.Errorf("Expected 3 actual attempts, got: %d", attempts)
 		}
 	})
-	
+
 	t.Run("non-retryable error", func(t *testing.T) {
 		config := Config{
 			MaxAttempts:  3,
 			InitialDelay: 10 * time.Millisecond,
 		}
 		r := New(config)
-		
+
 		attempts := 0
 		nonRetryableErr := NewNonRetryableError(errors.New("non-retryable"))
 		err := r.Do(context.Background(), func(ctx context.Context) error {
 			attempts++
 			return nonRetryableErr
 		})
-		
+
 		if err != nonRetryableErr {
 			t.Errorf("Expected non-retryable error, got: %v", err)
 		}
@@ -104,27 +104,27 @@ func TestRetrier_Do(t *testing.T) {
 			t.Errorf("Expected 1 attempt, got: %d", attempts)
 		}
 	})
-	
+
 	t.Run("context cancellation", func(t *testing.T) {
 		config := Config{
 			MaxAttempts:  3,
 			InitialDelay: 100 * time.Millisecond,
 		}
 		r := New(config)
-		
+
 		ctx, cancel := context.WithCancel(context.Background())
 		attempts := 0
-		
+
 		go func() {
 			time.Sleep(50 * time.Millisecond)
 			cancel()
 		}()
-		
+
 		err := r.Do(ctx, func(ctx context.Context) error {
 			attempts++
 			return errors.New("error")
 		})
-		
+
 		if !errors.Is(err, context.Canceled) {
 			t.Errorf("Expected context canceled error, got: %v", err)
 		}
@@ -140,7 +140,7 @@ func TestRetrier_DoWithData(t *testing.T) {
 		InitialDelay: 10 * time.Millisecond,
 	}
 	r := New(config)
-	
+
 	t.Run("success with data", func(t *testing.T) {
 		attempts := 0
 		data, err := r.DoWithData(context.Background(), func(ctx context.Context) (interface{}, error) {
@@ -150,7 +150,7 @@ func TestRetrier_DoWithData(t *testing.T) {
 			}
 			return "success", nil
 		})
-		
+
 		if err != nil {
 			t.Errorf("Expected no error, got: %v", err)
 		}
@@ -172,7 +172,7 @@ func TestRetrier_calculateDelay(t *testing.T) {
 			Jitter:       false,
 		}
 		r := New(config)
-		
+
 		delays := []time.Duration{
 			100 * time.Millisecond,  // attempt 0
 			200 * time.Millisecond,  // attempt 1
@@ -180,7 +180,7 @@ func TestRetrier_calculateDelay(t *testing.T) {
 			800 * time.Millisecond,  // attempt 3
 			1600 * time.Millisecond, // attempt 4
 		}
-		
+
 		for i, expected := range delays {
 			actual := r.calculateDelay(i)
 			if actual != expected {
@@ -188,7 +188,7 @@ func TestRetrier_calculateDelay(t *testing.T) {
 			}
 		}
 	})
-	
+
 	t.Run("max delay cap", func(t *testing.T) {
 		config := Config{
 			InitialDelay: 1 * time.Second,
@@ -197,14 +197,14 @@ func TestRetrier_calculateDelay(t *testing.T) {
 			Jitter:       false,
 		}
 		r := New(config)
-		
+
 		// Should be capped at 3 seconds
 		delay := r.calculateDelay(10)
 		if delay != 3*time.Second {
 			t.Errorf("Expected max delay of 3s, got: %v", delay)
 		}
 	})
-	
+
 	t.Run("jitter", func(t *testing.T) {
 		config := Config{
 			InitialDelay: 100 * time.Millisecond,
@@ -212,19 +212,19 @@ func TestRetrier_calculateDelay(t *testing.T) {
 			Jitter:       true,
 		}
 		r := New(config)
-		
+
 		// Run multiple times to ensure jitter is applied
 		seen := make(map[time.Duration]bool)
 		for i := 0; i < 10; i++ {
 			delay := r.calculateDelay(1)
 			seen[delay] = true
-			
+
 			// Should be around 200ms ± 25%
 			if delay < 150*time.Millisecond || delay > 250*time.Millisecond {
 				t.Errorf("Delay outside expected range: %v", delay)
 			}
 		}
-		
+
 		// Should have different values due to jitter
 		if len(seen) < 2 {
 			t.Error("Expected jitter to produce different delays")
@@ -264,7 +264,7 @@ func TestDefaultRetryableFunc(t *testing.T) {
 			retryable: false,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := DefaultRetryableFunc(tt.err)
@@ -281,11 +281,11 @@ func TestRetrier_Concurrent(t *testing.T) {
 		InitialDelay: 10 * time.Millisecond,
 	}
 	r := New(config)
-	
+
 	var totalAttempts int32
 	concurrency := 10
 	done := make(chan bool, concurrency)
-	
+
 	for i := 0; i < concurrency; i++ {
 		go func(id int) {
 			err := r.Do(context.Background(), func(ctx context.Context) error {
@@ -295,7 +295,7 @@ func TestRetrier_Concurrent(t *testing.T) {
 				}
 				return nil
 			})
-			
+
 			if id%2 == 0 && err == nil {
 				t.Errorf("Goroutine %d: expected error", id)
 			}
@@ -305,12 +305,12 @@ func TestRetrier_Concurrent(t *testing.T) {
 			done <- true
 		}(i)
 	}
-	
+
 	// Wait for all goroutines
 	for i := 0; i < concurrency; i++ {
 		<-done
 	}
-	
+
 	// Verify attempts
 	attempts := atomic.LoadInt32(&totalAttempts)
 	// 5 successful (1 attempt each) + 5 failed (3 attempts each) = 20

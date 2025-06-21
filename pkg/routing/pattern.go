@@ -14,7 +14,7 @@ func ConvertToServeMuxPattern(pattern string) string {
 		}
 		pattern = strings.Join(parts, "/")
 	}
-	
+
 	// Handle wildcard patterns
 	// ServeMux uses {$} for matching rest of path, not *
 	if strings.HasSuffix(pattern, "/*") {
@@ -22,6 +22,6 @@ func ConvertToServeMuxPattern(pattern string) string {
 	} else if strings.HasSuffix(pattern, "*") {
 		pattern = strings.TrimSuffix(pattern, "*") + "{path...}"
 	}
-	
+
 	return pattern
 }

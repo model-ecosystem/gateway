@@ -171,8 +171,8 @@ func TestStore_RateLimiting(t *testing.T) {
 	defer store.Close()
 
 	key := "test-rate"
-	limit := 2  // 2 requests per second
-	burst := 3  // Allow burst of 3
+	limit := 2 // 2 requests per second
+	burst := 3 // Allow burst of 3
 	window := time.Second
 
 	// Use up the burst
@@ -261,7 +261,7 @@ func TestStore_ConcurrentAccess(t *testing.T) {
 	// Run concurrent requests
 	concurrency := 10
 	requestsPerGoroutine := 5
-	
+
 	errChan := make(chan error, concurrency)
 	for i := 0; i < concurrency; i++ {
 		go func() {

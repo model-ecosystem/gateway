@@ -7,34 +7,34 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"gateway/internal/core"
 	"gateway/pkg/errors"
 	"gateway/pkg/request"
 	"gateway/pkg/requestid"
+	"github.com/gorilla/websocket"
 )
-
-
 
 // DefaultConfig returns default WebSocket configuration
 func DefaultConfig() *Config {
 	return &Config{
-		Host:                 "0.0.0.0",
-		Port:                 8081,
-		ReadTimeout:          60,
-		WriteTimeout:         60,
-		HandshakeTimeout:     10,
-		ReadBufferSize:       4096,
-		WriteBufferSize:      4096,
-		MaxMessageSize:       1024 * 1024, // 1MB
-		CheckOrigin:          true,
-		WriteDeadline:        30,
-		PongWait:             60,
-		PingPeriod:           30,
-		CloseGracePeriod:     5,
+		Host:             "0.0.0.0",
+		Port:             8081,
+		ReadTimeout:      60,
+		WriteTimeout:     60,
+		HandshakeTimeout: 10,
+		ReadBufferSize:   4096,
+		WriteBufferSize:  4096,
+		MaxMessageSize:   1024 * 1024, // 1MB
+		CheckOrigin:      true,
+		WriteDeadline:    30,
+		PongWait:         60,
+		PingPeriod:       30,
+		CloseGracePeriod: 5,
+		MaxConnections:   1024,
 	}
 }
 
@@ -55,6 +55,9 @@ type Adapter struct {
 	running        bool
 	listener       net.Listener
 	tokenValidator TokenValidator
+	serverCtx      context.Context
+	serverCancel   context.CancelFunc
+	connSemaphore  chan struct{}
 }
 
 // NewAdapter creates a new WebSocket adapter
@@ -80,12 +83,25 @@ func NewAdapter(config *Config, handler core.Handler, logger *slog.Logger) *Adap
 		},
 	}
 
-	return &Adapter{
-		config:   config,
-		handler:  handler,
-		upgrader: upgrader,
-		logger:   logger,
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Initialize connection semaphore
+	maxConns := config.MaxConnections
+	if maxConns <= 0 {
+		maxConns = 1024 // Default max connections
 	}
+
+	adapter := &Adapter{
+		config:        config,
+		handler:       handler,
+		upgrader:      upgrader,
+		logger:        logger,
+		serverCtx:     ctx,
+		serverCancel:  cancel,
+		connSemaphore: make(chan struct{}, maxConns),
+	}
+
+	return adapter
 }
 
 // WithTokenValidator sets the token validator for the adapter
@@ -104,11 +120,11 @@ func (a *Adapter) Start(ctx context.Context) error {
 	}
 
 	addr := fmt.Sprintf("%s:%d", a.config.Host, a.config.Port)
-	
+
 	// Create HTTP server
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", a.handleWebSocket)
-	
+
 	a.server = &http.Server{
 		Addr:         addr,
 		Handler:      mux,
@@ -124,7 +140,7 @@ func (a *Adapter) Start(ctx context.Context) error {
 		return errors.NewError(errors.ErrorTypeInternal, fmt.Sprintf("failed to bind WebSocket listener to %s", addr)).
 			WithCause(err)
 	}
-	
+
 	// Wrap with TLS if enabled
 	if a.config.TLS != nil && a.config.TLS.Enabled {
 		// Use provided TLSConfig or create default one
@@ -179,6 +195,9 @@ func (a *Adapter) Stop(ctx context.Context) error {
 
 	a.logger.Info("Stopping WebSocket adapter")
 
+	// Cancel the server context to close all active connections
+	a.serverCancel()
+
 	if a.server != nil {
 		if err := a.server.Shutdown(ctx); err != nil {
 			return errors.NewError(errors.ErrorTypeInternal, "failed to shutdown WebSocket server").WithCause(err)
@@ -196,6 +215,21 @@ func (a *Adapter) Type() string {
 
 // handleWebSocket handles WebSocket upgrade and connection
 func (a *Adapter) handleWebSocket(w http.ResponseWriter, r *http.Request) {
+	// Check connection limit
+	select {
+	case a.connSemaphore <- struct{}{}:
+		// Acquired a slot, proceed
+		defer func() { <-a.connSemaphore }() // Release the slot when handler exits
+	default:
+		// No slots available
+		a.logger.Warn("Max WebSocket connections reached, rejecting new connection",
+			"remote", r.RemoteAddr,
+			"maxConnections", a.config.MaxConnections,
+		)
+		http.Error(w, "Too Many Connections", http.StatusServiceUnavailable)
+		return
+	}
+
 	// Generate request ID if not present
 	reqID := r.Header.Get("X-Request-ID")
 	if reqID == "" {
@@ -205,24 +239,31 @@ func (a *Adapter) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Validate JWT token before upgrade if validator is configured
 	if a.tokenValidator != nil {
 		authHeader := r.Header.Get("Authorization")
-		if authHeader != "" && len(authHeader) > 7 && authHeader[:7] == "Bearer " {
-			token := authHeader[7:]
-			connectionID := reqID
-			
-			// Do a preliminary validation check
-			err := a.tokenValidator.ValidateConnection(r.Context(), connectionID, token, func() {})
-			if err != nil {
-				// Initial validation failed - reject before upgrade
-				a.logger.Error("JWT validation failed for WebSocket connection",
-					"error", err,
-					"remote", r.RemoteAddr,
-				)
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
-				return
-			}
-			// Stop this preliminary validation
-			a.tokenValidator.StopValidation(connectionID)
+		if authHeader == "" || len(authHeader) <= 7 || authHeader[:7] != "Bearer " {
+			// Missing or malformed Authorization header
+			a.logger.Warn("Missing or malformed Authorization header for WebSocket connection",
+				"remote", r.RemoteAddr,
+			)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
 		}
+
+		token := authHeader[7:]
+		connectionID := reqID
+
+		// Do a preliminary validation check
+		err := a.tokenValidator.ValidateConnection(r.Context(), connectionID, token, func() {})
+		if err != nil {
+			// Initial validation failed - reject before upgrade
+			a.logger.Error("JWT validation failed for WebSocket connection",
+				"error", err,
+				"remote", r.RemoteAddr,
+			)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		// Stop this preliminary validation
+		a.tokenValidator.StopValidation(connectionID)
 	}
 
 	// Upgrade HTTP connection to WebSocket
@@ -249,8 +290,9 @@ func (a *Adapter) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 
-	// Create WebSocket connection wrapper with context
-	wsConn := newConnWithContext(conn, r.RemoteAddr, r.Context())
+	// Create WebSocket connection wrapper with server context (not request context)
+	// This ensures the connection remains valid after the HTTP handler returns
+	wsConn := newConnWithContext(conn, r.RemoteAddr, a.serverCtx)
 
 	// Create request from HTTP upgrade request
 	req := &wsRequest{
@@ -259,8 +301,9 @@ func (a *Adapter) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Handle the WebSocket connection through the handler chain
-	ctx := r.Context()
-	
+	// Use server context for the WebSocket lifetime
+	ctx := a.serverCtx
+
 	// Start JWT validation if configured
 	if a.tokenValidator != nil {
 		// Extract token from Authorization header
@@ -268,7 +311,7 @@ func (a *Adapter) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		if authHeader != "" && len(authHeader) > 7 && authHeader[:7] == "Bearer " {
 			token := authHeader[7:]
 			connectionID := reqID
-			
+
 			// Start token validation
 			err := a.tokenValidator.ValidateConnection(ctx, connectionID, token, func() {
 				// Token expired, close the connection
@@ -276,13 +319,13 @@ func (a *Adapter) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					"connectionID", connectionID,
 					"remote", r.RemoteAddr,
 				)
-				
+
 				// Send close message
 				closeMsg := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "authentication expired")
 				conn.WriteControl(websocket.CloseMessage, closeMsg, time.Now().Add(time.Second))
 				conn.Close()
 			})
-			
+
 			if err != nil {
 				// Initial validation failed
 				a.logger.Error("JWT validation failed for WebSocket connection",
@@ -295,7 +338,7 @@ func (a *Adapter) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				conn.Close()
 				return
 			}
-			
+
 			// Stop validation when connection closes
 			defer a.tokenValidator.StopValidation(connectionID)
 		}
@@ -307,16 +350,16 @@ func (a *Adapter) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			"path", r.URL.Path,
 			"remote", r.RemoteAddr,
 		)
-		// Send close message and close connection on error
-		closeMsg := websocket.FormatCloseMessage(websocket.CloseInternalServerErr, err.Error())
+		// Send generic close message to client
+		closeMsg := websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "Internal Server Error")
 		conn.WriteControl(websocket.CloseMessage, closeMsg, time.Now().Add(time.Second))
 		conn.Close()
 		return
 	}
-	
+
 	// Check if handler successfully processed the WebSocket
 	if resp != nil && resp.StatusCode() == http.StatusSwitchingProtocols {
-		a.logger.Debug("WebSocket connection established", 
+		a.logger.Debug("WebSocket connection established",
 			"path", r.URL.Path,
 			"remote", r.RemoteAddr,
 		)
@@ -347,21 +390,72 @@ func makeCheckOrigin(config *Config) func(r *http.Request) bool {
 		if origin == "" {
 			return true
 		}
-		
-		// Allow same origin
-		if origin == "http://"+r.Host || origin == "https://"+r.Host {
+
+		// Parse the origin URL
+		originURL, err := url.Parse(origin)
+		if err != nil {
+			return false
+		}
+
+		// Parse the request host
+		reqHost := r.Host
+		if reqHost == "" && r.URL != nil {
+			reqHost = r.URL.Host
+		}
+		if reqHost == "" {
+			return false
+		}
+
+		// Compare hosts (handling default ports)
+		originHost := originURL.Hostname()
+		originPort := originURL.Port()
+		if originPort == "" {
+			if originURL.Scheme == "https" {
+				originPort = "443"
+			} else if originURL.Scheme == "http" {
+				originPort = "80"
+			}
+		}
+
+		reqHostname, reqPort, err := net.SplitHostPort(reqHost)
+		if err != nil {
+			// No port in request host
+			reqHostname = reqHost
+			if r.TLS != nil {
+				reqPort = "443"
+			} else {
+				reqPort = "80"
+			}
+		}
+
+		// Check same origin
+		if originHost == reqHostname && originPort == reqPort {
 			return true
 		}
-		
+
 		// Check allowed origins
 		if len(allowedOrigins) == 0 {
 			return false
 		}
-		
-		return allowedOrigins[origin] || allowedOrigins["*"]
+
+		// Check exact match first
+		if allowedOrigins[origin] || allowedOrigins["*"] {
+			return true
+		}
+
+		// Check with normalized origin (add default port if missing)
+		normalizedOrigin := origin
+		if originPort == "" {
+			if originURL.Scheme == "https" {
+				normalizedOrigin = fmt.Sprintf("%s://%s:443", originURL.Scheme, originHost)
+			} else if originURL.Scheme == "http" {
+				normalizedOrigin = fmt.Sprintf("%s://%s:80", originURL.Scheme, originHost)
+			}
+		}
+
+		return allowedOrigins[normalizedOrigin]
 	}
 }
-
 
 // wsRequest implements core.Request for WebSocket
 type wsRequest struct {

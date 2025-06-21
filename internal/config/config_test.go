@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
-	
+
 	"gateway/internal/core"
 	"gopkg.in/yaml.v3"
 )
@@ -357,8 +357,8 @@ gateway:
 			wantErr: true,
 		},
 		{
-			name: "empty config",
-			yaml: ``,
+			name:    "empty config",
+			yaml:    ``,
 			wantErr: false,
 			check: func(t *testing.T, cfg *Config) {
 				// Should have zero values
@@ -500,7 +500,7 @@ func TestInstance_ToServiceInstance(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.instance.ToServiceInstance(tt.svcName)
-			
+
 			if got.ID != tt.want.ID {
 				t.Errorf("ID: got %s, want %s", got.ID, tt.want.ID)
 			}
@@ -575,7 +575,7 @@ func TestRouteRule_ToRouteRule(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.rule.ToRouteRule()
-			
+
 			if got.ID != tt.want.ID {
 				t.Errorf("ID: got %s, want %s", got.ID, tt.want.ID)
 			}
@@ -591,7 +591,7 @@ func TestRouteRule_ToRouteRule(t *testing.T) {
 			if got.Timeout != tt.want.Timeout {
 				t.Errorf("Timeout: got %v, want %v", got.Timeout, tt.want.Timeout)
 			}
-			
+
 			// Check session affinity
 			if tt.want.SessionAffinity != nil {
 				if got.SessionAffinity == nil {
@@ -612,12 +612,12 @@ func TestRouteRule_ToRouteRule(t *testing.T) {
 func TestConfigDefaults(t *testing.T) {
 	// Test that zero values work correctly
 	cfg := &Config{}
-	
+
 	// Frontend HTTP should have zero values
 	if cfg.Gateway.Frontend.HTTP.Port != 0 {
 		t.Errorf("Expected port 0, got %d", cfg.Gateway.Frontend.HTTP.Port)
 	}
-	
+
 	// Optional configs should be nil
 	if cfg.Gateway.Frontend.WebSocket != nil {
 		t.Error("Expected WebSocket to be nil")

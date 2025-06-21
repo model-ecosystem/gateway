@@ -17,10 +17,10 @@ func TestSSEBasic(t *testing.T) {
 		t.Skip("Skipping integration test")
 	}
 
-	skipIfServerNotRunning(t, "localhost:8080")
+	skipIfServerNotRunning(t, "localhost:8081")
 
 	// Gateway SSE URL
-	url := "http://localhost:8080/events"
+	url := "http://localhost:8081/events"
 
 	// Create request with SSE headers
 	req, err := http.NewRequest("GET", url, nil)
@@ -63,10 +63,10 @@ func TestSSEBasic(t *testing.T) {
 	// Read events in goroutine
 	go func() {
 		var currentEvent strings.Builder
-		
+
 		for scanner.Scan() {
 			line := scanner.Text()
-			
+
 			if line == "" && currentEvent.Len() > 0 {
 				// End of event
 				eventChan <- currentEvent.String()
@@ -76,7 +76,7 @@ func TestSSEBasic(t *testing.T) {
 				currentEvent.WriteString("\n")
 			}
 		}
-		
+
 		if err := scanner.Err(); err != nil {
 			errChan <- err
 		}
@@ -88,15 +88,15 @@ func TestSSEBasic(t *testing.T) {
 		case event := <-eventChan:
 			eventCount++
 			t.Logf("Event %d:\n%s", eventCount, event)
-			
+
 			// Verify event structure
 			if !strings.Contains(event, "event:") || !strings.Contains(event, "data:") {
 				t.Errorf("Invalid event structure: %s", event)
 			}
-			
+
 		case err := <-errChan:
 			t.Fatalf("Error reading events: %v", err)
-			
+
 		case <-ctx.Done():
 			t.Fatalf("Timeout waiting for events (got %d/%d)", eventCount, maxEvents)
 		}
@@ -113,11 +113,11 @@ func TestSSEStickySessions(t *testing.T) {
 		t.Skip("Skipping integration test")
 	}
 
-	skipIfServerNotRunning(t, "localhost:8080")
+	skipIfServerNotRunning(t, "localhost:8081")
 
 	// Make multiple connections and verify they go to the same backend
-	url := "http://localhost:8080/notifications/testuser"
-	
+	url := "http://localhost:8081/notifications/testuser"
+
 	// First connection
 	resp1, err := makeSSERequest(url, "user1")
 	if err != nil {
@@ -155,10 +155,10 @@ func TestSSEKeepalive(t *testing.T) {
 		t.Skip("Skipping integration test")
 	}
 
-	skipIfServerNotRunning(t, "localhost:8080")
+	skipIfServerNotRunning(t, "localhost:8081")
 
-	url := "http://localhost:8080/events"
-	
+	url := "http://localhost:8081/events"
+
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
@@ -211,21 +211,21 @@ func makeSSERequest(url, userID string) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	req.Header.Set("Accept", "text/event-stream")
 	req.Header.Set("X-User-ID", userID)
 	req.Header.Set("X-Session-Id", userID) // For sticky sessions
-	
+
 	client := &http.Client{Timeout: 0}
 	return client.Do(req)
 }
 
 func readServerFromSSE(body io.Reader) (string, error) {
 	scanner := bufio.NewScanner(body)
-	
+
 	for scanner.Scan() {
 		line := scanner.Text()
-		
+
 		// Look for server info in data
 		if strings.HasPrefix(line, "data:") && strings.Contains(line, "server") {
 			// Extract server address from message
@@ -237,6 +237,6 @@ func readServerFromSSE(body io.Reader) (string, error) {
 			}
 		}
 	}
-	
+
 	return "", fmt.Errorf("server info not found")
 }

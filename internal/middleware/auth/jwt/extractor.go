@@ -77,7 +77,7 @@ func (e *Extractor) extractFromCookie(cookieHeader string) string {
 // parseCookies parses a cookie header
 func parseCookies(header string) map[string]string {
 	cookies := make(map[string]string)
-	
+
 	pairs := strings.Split(header, ";")
 	for _, pair := range pairs {
 		pair = strings.TrimSpace(pair)
@@ -86,6 +86,6 @@ func parseCookies(header string) map[string]string {
 			cookies[parts[0]] = parts[1]
 		}
 	}
-	
+
 	return cookies
 }

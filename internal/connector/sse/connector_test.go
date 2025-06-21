@@ -24,12 +24,12 @@ func createMockSSEServer(t *testing.T, handler func(w http.ResponseWriter, r *ht
 		if accept := r.Header.Get("Accept"); accept != "text/event-stream" {
 			t.Errorf("Expected Accept: text/event-stream, got %s", accept)
 		}
-		
+
 		// Set SSE response headers
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Connection", "keep-alive")
-		
+
 		if handler != nil {
 			handler(w, r)
 		}
@@ -38,7 +38,7 @@ func createMockSSEServer(t *testing.T, handler func(w http.ResponseWriter, r *ht
 
 func TestDefaultConfig(t *testing.T) {
 	config := DefaultConfig()
-	
+
 	if config.DialTimeout != 10*time.Second {
 		t.Errorf("Expected dial timeout 10s, got %v", config.DialTimeout)
 	}
@@ -52,7 +52,7 @@ func TestDefaultConfig(t *testing.T) {
 
 func TestNewConnector(t *testing.T) {
 	logger := slog.Default()
-	
+
 	tests := []struct {
 		name   string
 		config *Config
@@ -77,11 +77,11 @@ func TestNewConnector(t *testing.T) {
 			client: &http.Client{Timeout: 15 * time.Second},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			connector := NewConnector(tt.config, tt.client, logger)
-			
+
 			if connector == nil {
 				t.Fatal("Expected connector, got nil")
 			}
@@ -97,7 +97,7 @@ func TestNewConnector(t *testing.T) {
 
 func TestConnector_Connect(t *testing.T) {
 	logger := slog.Default()
-	
+
 	tests := []struct {
 		name          string
 		serverHandler func(w http.ResponseWriter, r *http.Request)
@@ -185,14 +185,14 @@ func TestConnector_Connect(t *testing.T) {
 			errorContains: "Failed to connect to SSE backend",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var server *httptest.Server
 			if tt.serverHandler != nil {
 				server = createMockSSEServer(t, tt.serverHandler)
 				defer server.Close()
-				
+
 				// Extract port from server URL
 				serverURL := strings.TrimPrefix(server.URL, "http://")
 				if tt.instance.Scheme == "https" {
@@ -201,17 +201,17 @@ func TestConnector_Connect(t *testing.T) {
 				_, portStr, _ := net.SplitHostPort(serverURL)
 				var port int
 				fmt.Sscanf(portStr, "%d", &port)
-				
+
 				if tt.instance.Port == 0 {
 					tt.instance.Port = port
 				}
 			}
-			
+
 			connector := NewConnector(DefaultConfig(), nil, logger)
 			ctx := context.Background()
-			
+
 			conn, err := connector.Connect(ctx, tt.instance, tt.path, tt.headers)
-			
+
 			if tt.wantError {
 				if err == nil {
 					t.Error("Expected error, got nil")
@@ -226,12 +226,12 @@ func TestConnector_Connect(t *testing.T) {
 					t.Fatal("Expected connection, got nil")
 				}
 				defer conn.Close()
-				
+
 				// Verify connection properties
 				if conn.instance != tt.instance {
 					t.Error("Instance not set correctly")
 				}
-				
+
 				// Run response check if provided
 				if tt.checkResponse != nil {
 					tt.checkResponse(t, conn)
@@ -243,10 +243,10 @@ func TestConnector_Connect(t *testing.T) {
 
 func TestConnection_ReadEvent(t *testing.T) {
 	logger := slog.Default()
-	
+
 	tests := []struct {
-		name          string
-		serverEvents  []string
+		name           string
+		serverEvents   []string
 		expectedEvents []core.SSEEvent
 	}{
 		{
@@ -292,7 +292,7 @@ func TestConnection_ReadEvent(t *testing.T) {
 			},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			server := createMockSSEServer(t, func(w http.ResponseWriter, r *http.Request) {
@@ -302,33 +302,33 @@ func TestConnection_ReadEvent(t *testing.T) {
 				}
 			})
 			defer server.Close()
-			
+
 			// Extract port
 			serverURL := strings.TrimPrefix(server.URL, "http://")
 			_, portStr, _ := net.SplitHostPort(serverURL)
 			var port int
 			fmt.Sscanf(portStr, "%d", &port)
-			
+
 			instance := &core.ServiceInstance{
 				ID:      "test",
 				Address: "127.0.0.1",
 				Port:    port,
 			}
-			
+
 			connector := NewConnector(DefaultConfig(), nil, logger)
 			conn, err := connector.Connect(context.Background(), instance, "/", nil)
 			if err != nil {
 				t.Fatalf("Failed to connect: %v", err)
 			}
 			defer conn.Close()
-			
+
 			// Read events
 			for i, expected := range tt.expectedEvents {
 				event, err := conn.ReadEvent()
 				if err != nil {
 					t.Fatalf("Failed to read event %d: %v", i, err)
 				}
-				
+
 				if event.ID != expected.ID {
 					t.Errorf("Event %d: expected ID %s, got %s", i, expected.ID, event.ID)
 				}
@@ -345,7 +345,7 @@ func TestConnection_ReadEvent(t *testing.T) {
 
 func TestConnection_Proxy(t *testing.T) {
 	logger := slog.Default()
-	
+
 	// Create backend server that sends periodic events
 	server := createMockSSEServer(t, func(w http.ResponseWriter, r *http.Request) {
 		events := []string{
@@ -354,7 +354,7 @@ func TestConnection_Proxy(t *testing.T) {
 			"id: 2\nevent: data\ndata: second\n\n",
 			"event: end\ndata: done\n\n",
 		}
-		
+
 		for _, event := range events {
 			fmt.Fprint(w, event)
 			w.(http.Flusher).Flush()
@@ -362,19 +362,19 @@ func TestConnection_Proxy(t *testing.T) {
 		}
 	})
 	defer server.Close()
-	
+
 	// Extract port
 	serverURL := strings.TrimPrefix(server.URL, "http://")
 	_, portStr, _ := net.SplitHostPort(serverURL)
 	var port int
 	fmt.Sscanf(portStr, "%d", &port)
-	
+
 	instance := &core.ServiceInstance{
 		ID:      "backend",
 		Address: "127.0.0.1",
 		Port:    port,
 	}
-	
+
 	// Connect to backend
 	connector := NewConnector(DefaultConfig(), nil, logger)
 	conn, err := connector.Connect(context.Background(), instance, "/", nil)
@@ -382,23 +382,23 @@ func TestConnection_Proxy(t *testing.T) {
 		t.Fatalf("Failed to connect to backend: %v", err)
 	}
 	defer conn.Close()
-	
+
 	// Create mock client writer
 	clientWriter := httptest.NewRecorder()
 	mockWriter := &mockSSEWriter{
 		w:      clientWriter,
 		events: []core.SSEEvent{},
 	}
-	
+
 	// Proxy in background
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
-	
+
 	proxyDone := make(chan error, 1)
 	go func() {
 		proxyDone <- conn.Proxy(ctx, mockWriter)
 	}()
-	
+
 	// Wait for proxy to complete
 	select {
 	case err := <-proxyDone:
@@ -415,12 +415,12 @@ func TestConnection_Proxy(t *testing.T) {
 	case <-time.After(500 * time.Millisecond):
 		t.Error("Proxy did not complete in time")
 	}
-	
+
 	// Verify events were proxied
 	if len(mockWriter.events) < 4 {
 		t.Errorf("Expected at least 4 events, got %d", len(mockWriter.events))
 	}
-	
+
 	// Check first event
 	if len(mockWriter.events) > 0 {
 		if mockWriter.events[0].Type != "start" || mockWriter.events[0].Data != "begin" {
@@ -431,7 +431,7 @@ func TestConnection_Proxy(t *testing.T) {
 
 func TestConnection_ContextCancellation(t *testing.T) {
 	logger := slog.Default()
-	
+
 	// Create server that sends events slowly
 	server := createMockSSEServer(t, func(w http.ResponseWriter, r *http.Request) {
 		for i := 0; i < 100; i++ {
@@ -441,29 +441,29 @@ func TestConnection_ContextCancellation(t *testing.T) {
 		}
 	})
 	defer server.Close()
-	
+
 	// Extract port
 	serverURL := strings.TrimPrefix(server.URL, "http://")
 	_, portStr, _ := net.SplitHostPort(serverURL)
 	var port int
 	fmt.Sscanf(portStr, "%d", &port)
-	
+
 	instance := &core.ServiceInstance{
 		ID:      "test",
 		Address: "127.0.0.1",
 		Port:    port,
 	}
-	
+
 	// Connect with cancelable context
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	connector := NewConnector(DefaultConfig(), nil, logger)
 	conn, err := connector.Connect(ctx, instance, "/", nil)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 	defer conn.Close()
-	
+
 	// Read first event
 	event, err := conn.ReadEvent()
 	if err != nil {
@@ -472,10 +472,10 @@ func TestConnection_ContextCancellation(t *testing.T) {
 	if event.Type != "tick" {
 		t.Errorf("Expected tick event, got %s", event.Type)
 	}
-	
+
 	// Cancel context
 	cancel()
-	
+
 	// Try to read more events - should fail
 	_, err = conn.ReadEvent()
 	if err == nil {
@@ -491,7 +491,7 @@ type mockSSEWriter struct {
 
 func (m *mockSSEWriter) WriteEvent(event *core.SSEEvent) error {
 	m.events = append(m.events, *event)
-	
+
 	// Write to actual response writer
 	if event.ID != "" {
 		fmt.Fprintf(m.w, "id: %s\n", event.ID)
@@ -500,11 +500,11 @@ func (m *mockSSEWriter) WriteEvent(event *core.SSEEvent) error {
 		fmt.Fprintf(m.w, "event: %s\n", event.Type)
 	}
 	fmt.Fprintf(m.w, "data: %s\n\n", event.Data)
-	
+
 	if flusher, ok := m.w.(http.Flusher); ok {
 		flusher.Flush()
 	}
-	
+
 	return nil
 }
 

@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"gateway/internal/core"
 	"gateway/pkg/errors"
+	"github.com/gorilla/websocket"
 )
 
 // DefaultConfig returns default configuration
@@ -84,11 +84,22 @@ func (c *Connector) Connect(ctx context.Context, instance *core.ServiceInstance,
 	conn, resp, err := c.dialer.DialContext(ctx, u.String(), headers)
 	if err != nil {
 		if resp != nil && resp.StatusCode != http.StatusSwitchingProtocols {
+			c.logger.Error("WebSocket handshake failed",
+				"url", u.String(),
+				"instance", instance.ID,
+				"status", resp.StatusCode,
+				"error", err,
+			)
 			return nil, errors.NewError(
 				errors.ErrorTypeUnavailable,
 				fmt.Sprintf("WebSocket handshake failed: %d", resp.StatusCode),
 			).WithCause(err)
 		}
+		c.logger.Error("Failed to connect to WebSocket backend",
+			"url", u.String(),
+			"instance", instance.ID,
+			"error", err,
+		)
 		return nil, errors.NewError(
 			errors.ErrorTypeUnavailable,
 			"Failed to connect to WebSocket backend",
@@ -133,7 +144,7 @@ func (c *Connection) ReadMessage() (*core.WebSocketMessage, error) {
 func (c *Connection) WriteMessage(msg *core.WebSocketMessage) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	if err := c.conn.WriteMessage(mapMessageTypeReverse(msg.Type), msg.Data); err != nil {
 		return errors.NewError(errors.ErrorTypeInternal, "failed to write WebSocket message").WithCause(err)
 	}
@@ -191,10 +202,10 @@ func (c *Connection) RemoteAddr() string {
 func (c *Connection) Proxy(ctx context.Context, clientConn core.WebSocketConn) error {
 	// Error channel to coordinate goroutines
 	errChan := make(chan error, 2)
-	
+
 	// Track message counts
 	var clientToBackend, backendToClient int
-	
+
 	// Client to backend
 	go func() {
 		for {
@@ -231,9 +242,10 @@ func (c *Connection) Proxy(ctx context.Context, clientConn core.WebSocketConn) e
 				}
 
 				if err := c.WriteMessage(msg); err != nil {
-					c.logger.Debug("Error writing to backend",
+					c.logger.Error("Error writing to backend",
 						"error", err,
 						"instance", c.instance.ID,
+						"message_type", msg.Type,
 					)
 					errChan <- err
 					return
@@ -281,9 +293,10 @@ func (c *Connection) Proxy(ctx context.Context, clientConn core.WebSocketConn) e
 							"messages_sent", backendToClient,
 						)
 					} else {
-						c.logger.Debug("Error writing to client",
+						c.logger.Error("Error writing to client",
 							"error", err,
 							"instance", c.instance.ID,
+							"message_type", msg.Type,
 						)
 					}
 					errChan <- err
@@ -296,7 +309,7 @@ func (c *Connection) Proxy(ctx context.Context, clientConn core.WebSocketConn) e
 
 	// Wait for first error
 	err := <-errChan
-	
+
 	// Log final statistics
 	c.logger.Info("WebSocket proxy completed",
 		"instance", c.instance.ID,
@@ -304,23 +317,23 @@ func (c *Connection) Proxy(ctx context.Context, clientConn core.WebSocketConn) e
 		"backend_to_client", backendToClient,
 		"error", err,
 	)
-	
+
 	// Send close frames to both sides
 	closeMsg := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "proxy ended")
 	c.conn.WriteControl(websocket.CloseMessage, closeMsg, time.Now().Add(time.Second))
-	
+
 	// Close both connections
 	c.Close()
 	clientConn.Close()
-	
+
 	// Check if it was a normal close or expected disconnect
-	if err == nil || 
+	if err == nil ||
 		websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) ||
-		err.Error() == "client disconnected" || 
+		err.Error() == "client disconnected" ||
 		err.Error() == "connection is disconnected" {
 		return nil
 	}
-	
+
 	return err
 }
 

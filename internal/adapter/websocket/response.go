@@ -2,7 +2,7 @@ package websocket
 
 import (
 	"io"
-	
+
 	"gateway/internal/core"
 )
 

@@ -4,14 +4,14 @@ import (
 	"context"
 	"io"
 	"net/http"
-	
+
 	"gateway/internal/core"
 )
 
 // Middleware creates CORS middleware for the gateway
 func Middleware(config Config) core.Middleware {
 	cors := New(config)
-	
+
 	return func(next core.Handler) core.Handler {
 		return func(ctx context.Context, req core.Request) (core.Response, error) {
 			// Get HTTP request from context
@@ -20,20 +20,20 @@ func Middleware(config Config) core.Middleware {
 				// If no HTTP request in context, just pass through
 				return next(ctx, req)
 			}
-			
+
 			// Get HTTP response writer from context
 			httpWriter, ok := ctx.Value("http.writer").(http.ResponseWriter)
 			if !ok {
 				// If no HTTP writer in context, just pass through
 				return next(ctx, req)
 			}
-			
+
 			origin := httpReq.Header.Get("Origin")
-			
+
 			// Check if this is a preflight request
 			if httpReq.Method == http.MethodOptions && httpReq.Header.Get("Access-Control-Request-Method") != "" {
 				cors.handlePreflight(httpWriter, httpReq, origin)
-				
+
 				if !config.OptionsPassthrough {
 					// Return empty response for preflight
 					return &corsResponse{
@@ -44,7 +44,7 @@ func Middleware(config Config) core.Middleware {
 			} else {
 				cors.handleActualRequest(httpWriter, httpReq, origin)
 			}
-			
+
 			// Continue to next handler
 			return next(ctx, req)
 		}

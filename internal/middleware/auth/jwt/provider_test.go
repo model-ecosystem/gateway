@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	
+
 	"gateway/internal/middleware/auth"
 	"gateway/pkg/errors"
 )
@@ -66,10 +66,10 @@ func TestJWTProvider_NewProvider(t *testing.T) {
 	logger := slog.Default()
 
 	tests := []struct {
-		name        string
-		config      *Config
-		wantErr     bool
-		errorType   errors.ErrorType
+		name      string
+		config    *Config
+		wantErr   bool
+		errorType errors.ErrorType
 	}{
 		{
 			name: "valid RS256 with public key",
@@ -127,13 +127,13 @@ func TestJWTProvider_NewProvider(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			provider, err := NewProvider(tt.config, logger)
-			
+
 			if tt.wantErr {
 				if err == nil {
 					t.Error("Expected error but got none")
 					return
 				}
-				
+
 				if gwErr, ok := err.(*errors.Error); ok {
 					if gwErr.Type != tt.errorType {
 						t.Errorf("Expected error type %s, got %s", tt.errorType, gwErr.Type)

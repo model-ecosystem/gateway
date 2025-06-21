@@ -48,15 +48,15 @@ func TestNewError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := NewError(tt.errorType, tt.message)
-			
+
 			if err.Type != tt.errorType {
 				t.Errorf("NewError() type = %v, want %v", err.Type, tt.errorType)
 			}
-			
+
 			if err.Message != tt.wantMessage {
 				t.Errorf("NewError() message = %v, want %v", err.Message, tt.wantMessage)
 			}
-			
+
 			if err.Details == nil {
 				t.Error("NewError() details should be initialized")
 			}
@@ -79,7 +79,7 @@ func TestErrorWithDetails(t *testing.T) {
 
 	// Test chaining
 	err.WithDetail("version", "v1").WithDetail("region", "us-east-1")
-	
+
 	if len(err.Details) != 4 {
 		t.Errorf("Expected 4 details, got %d", len(err.Details))
 	}
@@ -101,12 +101,11 @@ func TestErrorWithCause(t *testing.T) {
 	}
 }
 
-
 func TestErrorString(t *testing.T) {
 	// Simple error without details or cause
 	err1 := NewError(ErrorTypeNotFound, "user not found")
 	str1 := err1.Error()
-	
+
 	expected := "not_found: user not found"
 	if str1 != expected {
 		t.Errorf("Error() = %v, want '%s'", str1, expected)
@@ -117,12 +116,12 @@ func TestErrorString(t *testing.T) {
 		WithDetail("id", "123").
 		WithDetail("method", "GET")
 	str2 := err2.Error()
-	
+
 	expected2 := "not_found: user not found"
 	if str2 != expected2 {
 		t.Errorf("Error() = %v, want '%s'", str2, expected2)
 	}
-	
+
 	// Verify details are stored even if not in error string
 	if err2.Details["id"] != "123" {
 		t.Error("Detail 'id' not stored correctly")
@@ -136,7 +135,7 @@ func TestErrorString(t *testing.T) {
 	err3 := NewError(ErrorTypeInternal, "failed to fetch user").
 		WithCause(cause)
 	str3 := err3.Error()
-	
+
 	expected3 := "internal: failed to fetch user: database connection failed"
 	if str3 != expected3 {
 		t.Errorf("Error() = %v, want '%s'", str3, expected3)
@@ -148,12 +147,12 @@ func TestErrorString(t *testing.T) {
 		WithDetail("table", "users").
 		WithCause(fmt.Errorf("timeout"))
 	str4 := err4.Error()
-	
+
 	expected4 := "internal: operation failed: timeout"
 	if str4 != expected4 {
 		t.Errorf("Error() = %v, want '%s'", str4, expected4)
 	}
-	
+
 	// Verify details are still stored
 	if err4.Details["operation"] != "update" {
 		t.Error("Detail 'operation' not stored correctly")
@@ -167,7 +166,7 @@ func TestErrorNilHandling(t *testing.T) {
 	// Test WithDetail with nil value
 	err := NewError(ErrorTypeNotFound, "test").
 		WithDetail("key", nil)
-	
+
 	if err.Details["key"] != nil {
 		t.Errorf("WithDetail() should accept nil value")
 	}
@@ -175,11 +174,11 @@ func TestErrorNilHandling(t *testing.T) {
 	// Test WithCause with nil
 	err2 := NewError(ErrorTypeNotFound, "test").
 		WithCause(nil)
-	
+
 	if err2.Cause != nil {
 		t.Errorf("WithCause() should accept nil")
 	}
-	
+
 	// Error string should not include nil cause
 	if strings.Contains(err2.Error(), "caused by") {
 		t.Errorf("Error() should not include nil cause")

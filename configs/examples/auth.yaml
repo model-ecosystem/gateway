@@ -76,18 +76,23 @@ gateway:
         - api:read
       headerName: "X-API-Key"
       keys:
-        service-key-1:
-          # This is SHA256 hash of "test-api-key-123"
-          key: "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3"
-          subject: "test-service"
-          type: "service"
-          scopes:
-            - api:write
-            - api:admin
-        user-key-1:
-          # This is SHA256 hash of "user-api-key-456"
-          key: "5994471abb01112afcc18159f6cc74b4f511b99806da59b3caf5a9c173cacfc5"
-          subject: "john.doe@example.com"
-          type: "user"
-          scopes:
-            - api:read
+        # API keys should be loaded from environment variables or secrets management
+        # Example configuration:
+        # service-key-1:
+        #   key: "${SERVICE_KEY_1_HASH}"  # Load from environment variable
+        #   subject: "test-service"
+        #   type: "service"
+        #   scopes:
+        #     - api:write
+        #     - api:admin
+        # user-key-1:
+        #   key: "${USER_KEY_1_HASH}"  # Load from environment variable
+        #   subject: "john.doe@example.com"
+        #   type: "user"
+        #   scopes:
+        #     - api:read
+        # 
+        # To generate a SHA256 hash for an API key:
+        # echo -n "your-api-key" | sha256sum
+        # 
+        # Never commit actual keys or hashes to version control!

@@ -2,7 +2,7 @@ package config
 
 import (
 	"time"
-	
+
 	"gateway/internal/core"
 )
 
@@ -55,7 +55,6 @@ type TLS struct {
 	PreferServerCipher bool   `yaml:"preferServerCipher"`
 }
 
-
 // Backend configuration
 type Backend struct {
 	HTTP      HTTPBackend       `yaml:"http"`
@@ -70,19 +69,19 @@ type HTTPBackend struct {
 	MaxIdleConnsPerHost int `yaml:"maxIdleConnsPerHost"`
 	MaxConnsPerHost     int `yaml:"maxConnsPerHost"`
 	IdleConnTimeout     int `yaml:"idleConnTimeout"`
-	
+
 	// Connection settings
-	KeepAlive           bool `yaml:"keepAlive"`
-	KeepAliveTimeout    int  `yaml:"keepAliveTimeout"`
-	DisableCompression  bool `yaml:"disableCompression"`
-	DisableHTTP2        bool `yaml:"disableHTTP2"`
-	
+	KeepAlive          bool `yaml:"keepAlive"`
+	KeepAliveTimeout   int  `yaml:"keepAliveTimeout"`
+	DisableCompression bool `yaml:"disableCompression"`
+	DisableHTTP2       bool `yaml:"disableHTTP2"`
+
 	// Timeout settings
 	DialTimeout           int `yaml:"dialTimeout"`
 	ResponseHeaderTimeout int `yaml:"responseHeaderTimeout"`
 	ExpectContinueTimeout int `yaml:"expectContinueTimeout"`
 	TLSHandshakeTimeout   int `yaml:"tlsHandshakeTimeout"`
-	
+
 	// TLS settings
 	TLS *BackendTLS `yaml:"tls,omitempty"`
 }
@@ -101,61 +100,55 @@ type BackendTLS struct {
 	Renegotiation      bool   `yaml:"renegotiation"`
 }
 
-
-
-
-
-
-
 // WebSocket adapter configuration
 type WebSocket struct {
-	Enabled              bool   `yaml:"enabled"`
-	Host                 string `yaml:"host"`
-	Port                 int    `yaml:"port"`
-	ReadTimeout          int    `yaml:"readTimeout"`
-	WriteTimeout         int    `yaml:"writeTimeout"`
-	HandshakeTimeout     int    `yaml:"handshakeTimeout"`
-	MaxMessageSize       int64  `yaml:"maxMessageSize"`
-	ReadBufferSize       int    `yaml:"readBufferSize"`
-	WriteBufferSize      int    `yaml:"writeBufferSize"`
-	CheckOrigin          bool   `yaml:"checkOrigin"`
-	AllowedOrigins       []string `yaml:"allowedOrigins"`
-	EnableCompression    bool   `yaml:"enableCompression"`
-	CompressionLevel     int    `yaml:"compressionLevel"`
-	Subprotocols         []string `yaml:"subprotocols"`
-	WriteDeadline        int    `yaml:"writeDeadline"`
-	PongWait             int    `yaml:"pongWait"`
-	PingPeriod           int    `yaml:"pingPeriod"`
-	CloseGracePeriod     int    `yaml:"closeGracePeriod"`
+	Enabled           bool     `yaml:"enabled"`
+	Host              string   `yaml:"host"`
+	Port              int      `yaml:"port"`
+	ReadTimeout       int      `yaml:"readTimeout"`
+	WriteTimeout      int      `yaml:"writeTimeout"`
+	HandshakeTimeout  int      `yaml:"handshakeTimeout"`
+	MaxMessageSize    int64    `yaml:"maxMessageSize"`
+	ReadBufferSize    int      `yaml:"readBufferSize"`
+	WriteBufferSize   int      `yaml:"writeBufferSize"`
+	CheckOrigin       bool     `yaml:"checkOrigin"`
+	AllowedOrigins    []string `yaml:"allowedOrigins"`
+	EnableCompression bool     `yaml:"enableCompression"`
+	CompressionLevel  int      `yaml:"compressionLevel"`
+	Subprotocols      []string `yaml:"subprotocols"`
+	WriteDeadline     int      `yaml:"writeDeadline"`
+	PongWait          int      `yaml:"pongWait"`
+	PingPeriod        int      `yaml:"pingPeriod"`
+	CloseGracePeriod  int      `yaml:"closeGracePeriod"`
 	// Token validation for long-lived connections
-	TokenValidation      bool   `yaml:"tokenValidation"`    // Enable token validation
-	TokenCheckInterval   int    `yaml:"tokenCheckInterval"` // Check interval in seconds (default: 60)
+	TokenValidation    bool `yaml:"tokenValidation"`    // Enable token validation
+	TokenCheckInterval int  `yaml:"tokenCheckInterval"` // Check interval in seconds (default: 60)
 }
 
 // WebSocketBackend configuration
 type WebSocketBackend struct {
 	// Connection settings
-	HandshakeTimeout  int `yaml:"handshakeTimeout"`
-	ReadTimeout       int `yaml:"readTimeout"`
-	WriteTimeout      int `yaml:"writeTimeout"`
-	
+	HandshakeTimeout int `yaml:"handshakeTimeout"`
+	ReadTimeout      int `yaml:"readTimeout"`
+	WriteTimeout     int `yaml:"writeTimeout"`
+
 	// Buffer settings
 	ReadBufferSize  int `yaml:"readBufferSize"`
 	WriteBufferSize int `yaml:"writeBufferSize"`
-	
+
 	// Message settings
 	MaxMessageSize int64 `yaml:"maxMessageSize"`
-	
+
 	// Connection pool settings
-	MaxConnections         int `yaml:"maxConnections"`
-	ConnectionTimeout      int `yaml:"connectionTimeout"`
-	IdleConnectionTimeout  int `yaml:"idleConnectionTimeout"`
-	
+	MaxConnections        int `yaml:"maxConnections"`
+	ConnectionTimeout     int `yaml:"connectionTimeout"`
+	IdleConnectionTimeout int `yaml:"idleConnectionTimeout"`
+
 	// Keepalive settings
-	PingInterval   int `yaml:"pingInterval"`
-	PongTimeout    int `yaml:"pongTimeout"`
-	CloseTimeout   int `yaml:"closeTimeout"`
-	
+	PingInterval int `yaml:"pingInterval"`
+	PongTimeout  int `yaml:"pongTimeout"`
+	CloseTimeout int `yaml:"closeTimeout"`
+
 	// Compression
 	EnableCompression bool `yaml:"enableCompression"`
 	CompressionLevel  int  `yaml:"compressionLevel"`
@@ -163,9 +156,9 @@ type WebSocketBackend struct {
 
 // SSE adapter configuration
 type SSE struct {
-	Enabled            bool `yaml:"enabled"`
-	WriteTimeout       int  `yaml:"writeTimeout"`
-	KeepaliveTimeout   int  `yaml:"keepaliveTimeout"`
+	Enabled          bool `yaml:"enabled"`
+	WriteTimeout     int  `yaml:"writeTimeout"`
+	KeepaliveTimeout int  `yaml:"keepaliveTimeout"`
 	// Token validation for long-lived connections
 	TokenValidation    bool `yaml:"tokenValidation"`    // Enable token validation
 	TokenCheckInterval int  `yaml:"tokenCheckInterval"` // Check interval in seconds (default: 60)
@@ -176,14 +169,14 @@ type SSEBackend struct {
 	// Connection settings
 	ConnectTimeout int `yaml:"connectTimeout"`
 	ReadTimeout    int `yaml:"readTimeout"`
-	
+
 	// Buffering settings
 	BufferSize int `yaml:"bufferSize"`
-	
+
 	// Retry settings
 	RetryInterval int `yaml:"retryInterval"`
 	MaxRetries    int `yaml:"maxRetries"`
-	
+
 	// Event settings
 	MaxEventSize int `yaml:"maxEventSize"`
 }
@@ -208,30 +201,26 @@ type Service struct {
 
 // Instance represents a service instance
 type Instance struct {
-	ID      string `yaml:"id"`
-	Address string `yaml:"address"`
-	Port    int    `yaml:"port"`
-	Weight  int    `yaml:"weight"`
-	Health  string `yaml:"health"`
+	ID      string   `yaml:"id"`
+	Address string   `yaml:"address"`
+	Port    int      `yaml:"port"`
+	Weight  int      `yaml:"weight"`
+	Health  string   `yaml:"health"`
 	Tags    []string `yaml:"tags"`
 }
 
 // DockerRegistry configuration
 type DockerRegistry struct {
 	// Docker connection settings
-	Host          string `yaml:"host"`           // Docker daemon host
-	Version       string `yaml:"version"`        // Docker API version
-	CertPath      string `yaml:"certPath"`       // Path to certificates for TLS
-	
+	Host     string `yaml:"host"`     // Docker daemon host
+	Version  string `yaml:"version"`  // Docker API version
+	CertPath string `yaml:"certPath"` // Path to certificates for TLS
+
 	// Service discovery settings
-	LabelPrefix   string `yaml:"labelPrefix"`    // Label prefix for gateway config
-	Network       string `yaml:"network"`        // Docker network to use
-	RefreshInterval int  `yaml:"refreshInterval"` // Service refresh interval in seconds
+	LabelPrefix     string `yaml:"labelPrefix"`     // Label prefix for gateway config
+	Network         string `yaml:"network"`         // Docker network to use
+	RefreshInterval int    `yaml:"refreshInterval"` // Service refresh interval in seconds
 }
-
-
-
-
 
 // Router configuration
 type Router struct {
@@ -240,11 +229,12 @@ type Router struct {
 
 // RouteRule represents a single routing rule
 type RouteRule struct {
-	ID                   string               `yaml:"id"`
-	Path                 string               `yaml:"path"`
-	ServiceName          string               `yaml:"serviceName"`
-	LoadBalance          string               `yaml:"loadBalance"`
-	Timeout              int                  `yaml:"timeout"`
+	ID                    string                 `yaml:"id"`
+	Path                  string                 `yaml:"path"`
+	ServiceName           string                 `yaml:"serviceName"`
+	LoadBalance           string                 `yaml:"loadBalance"`
+	Timeout               int                    `yaml:"timeout"`
+	Protocol              string                 `yaml:"protocol"` // http, grpc, websocket, sse
 	SessionAffinityConfig *SessionAffinityConfig `yaml:"sessionAffinity"`
 	// Authentication
 	AuthRequired bool   `yaml:"authRequired"`
@@ -255,28 +245,27 @@ type RouteRule struct {
 	RateLimitExpiration int    `yaml:"rateLimitExpiration"`
 	RateLimitStorage    string `yaml:"rateLimitStorage"` // Storage name to use
 	// gRPC configuration
-	GRPC                *GRPCConfig `yaml:"grpc,omitempty"`
+	GRPC *GRPCConfig `yaml:"grpc,omitempty"`
 }
 
 // SessionAffinityConfig represents session affinity configuration
 type SessionAffinityConfig struct {
 	Enabled    bool   `yaml:"enabled"`
 	TTL        int    `yaml:"ttl"`
-	Source     string `yaml:"source"`      // cookie, header, query
-	CookieName string `yaml:"cookieName"`  // for cookie source
-	HeaderName string `yaml:"headerName"`  // for header source
-	QueryParam string `yaml:"queryParam"`  // for query source
+	Source     string `yaml:"source"`     // cookie, header, query
+	CookieName string `yaml:"cookieName"` // for cookie source
+	HeaderName string `yaml:"headerName"` // for header source
+	QueryParam string `yaml:"queryParam"` // for query source
+	MaxEntries int    `yaml:"maxEntries"` // max number of sessions to track
 }
-
-
 
 // Auth configuration
 type Auth struct {
-	Required       bool         `yaml:"required"`
-	Providers      []string     `yaml:"providers"`
-	SkipPaths      []string     `yaml:"skipPaths"`
-	RequiredScopes []string     `yaml:"requiredScopes"`
-	JWT            *JWTConfig   `yaml:"jwt,omitempty"`
+	Required       bool          `yaml:"required"`
+	Providers      []string      `yaml:"providers"`
+	SkipPaths      []string      `yaml:"skipPaths"`
+	RequiredScopes []string      `yaml:"requiredScopes"`
+	JWT            *JWTConfig    `yaml:"jwt,omitempty"`
 	APIKey         *APIKeyConfig `yaml:"apikey,omitempty"`
 }
 
@@ -299,13 +288,13 @@ type JWTConfig struct {
 
 // APIKeyConfig represents API key authentication configuration
 type APIKeyConfig struct {
-	Enabled       bool                       `yaml:"enabled"`
-	Keys          map[string]*APIKeyDetails  `yaml:"keys"`
-	HashKeys      bool                       `yaml:"hashKeys"`
-	DefaultScopes []string                   `yaml:"defaultScopes"`
-	HeaderName    string                     `yaml:"headerName"`
-	QueryParam    string                     `yaml:"queryParam"`
-	Scheme        string                     `yaml:"scheme"`
+	Enabled       bool                      `yaml:"enabled"`
+	Keys          map[string]*APIKeyDetails `yaml:"keys"`
+	HashKeys      bool                      `yaml:"hashKeys"`
+	DefaultScopes []string                  `yaml:"defaultScopes"`
+	HeaderName    string                    `yaml:"headerName"`
+	QueryParam    string                    `yaml:"queryParam"`
+	Scheme        string                    `yaml:"scheme"`
 }
 
 // APIKeyDetails represents configuration for a single API key
@@ -340,9 +329,15 @@ func (r *RouteRule) ToRouteRule() core.RouteRule {
 		ServiceName: r.ServiceName,
 		LoadBalance: core.LoadBalanceStrategy(r.LoadBalance),
 		Timeout:     time.Duration(r.Timeout) * time.Second,
+		Protocol:    r.Protocol,
 		Metadata:    make(map[string]interface{}),
 	}
-	
+
+	// Default to HTTP if protocol not specified
+	if rule.Protocol == "" {
+		rule.Protocol = "http"
+	}
+
 	// Convert session affinity config
 	if r.SessionAffinityConfig != nil && r.SessionAffinityConfig.Enabled {
 		rule.SessionAffinity = &core.SessionAffinityConfig{
@@ -352,25 +347,27 @@ func (r *RouteRule) ToRouteRule() core.RouteRule {
 			CookieName: r.SessionAffinityConfig.CookieName,
 			HeaderName: r.SessionAffinityConfig.HeaderName,
 			QueryParam: r.SessionAffinityConfig.QueryParam,
+			MaxEntries: r.SessionAffinityConfig.MaxEntries,
 		}
 	}
-	
+
 	// Add gRPC configuration if present
 	if r.GRPC != nil {
+		// Override protocol if GRPC config is present (backward compatibility)
 		rule.Protocol = "grpc"
 		rule.Metadata["grpc"] = r.GRPC
 	}
-	
+
 	return rule
 }
 
 // Health configuration
 type Health struct {
-	Enabled    bool              `yaml:"enabled"`
-	HealthPath string            `yaml:"healthPath"`
-	ReadyPath  string            `yaml:"readyPath"`
-	LivePath   string            `yaml:"livePath"`
-	Checks     map[string]Check  `yaml:"checks"`
+	Enabled    bool             `yaml:"enabled"`
+	HealthPath string           `yaml:"healthPath"`
+	ReadyPath  string           `yaml:"readyPath"`
+	LivePath   string           `yaml:"livePath"`
+	Checks     map[string]Check `yaml:"checks"`
 }
 
 // Check represents a health check configuration
@@ -384,15 +381,15 @@ type Check struct {
 // Metrics configuration
 type Metrics struct {
 	Enabled bool   `yaml:"enabled"`
-	Path    string `yaml:"path"`     // Path to expose metrics (e.g., /metrics)
-	Port    int    `yaml:"port"`     // Port to expose metrics (0 = same as main port)
+	Path    string `yaml:"path"` // Path to expose metrics (e.g., /metrics)
+	Port    int    `yaml:"port"` // Port to expose metrics (0 = same as main port)
 }
 
 // CircuitBreaker configuration
 type CircuitBreaker struct {
-	Enabled bool                       `yaml:"enabled"`
-	Default CircuitBreakerConfig       `yaml:"default"`
-	Routes  map[string]CircuitBreakerConfig `yaml:"routes,omitempty"`
+	Enabled  bool                            `yaml:"enabled"`
+	Default  CircuitBreakerConfig            `yaml:"default"`
+	Routes   map[string]CircuitBreakerConfig `yaml:"routes,omitempty"`
 	Services map[string]CircuitBreakerConfig `yaml:"services,omitempty"`
 }
 
@@ -456,26 +453,26 @@ type Redis struct {
 	Port     int    `yaml:"port"`
 	Password string `yaml:"password"`
 	DB       int    `yaml:"db"`
-	
+
 	// Connection pool settings
-	MaxActive       int `yaml:"maxActive"`       // Maximum number of active connections
-	MaxIdle         int `yaml:"maxIdle"`         // Maximum number of idle connections
-	IdleTimeout     int `yaml:"idleTimeout"`     // Idle timeout in seconds
-	ConnectTimeout  int `yaml:"connectTimeout"`  // Connection timeout in seconds
-	ReadTimeout     int `yaml:"readTimeout"`     // Read timeout in seconds
-	WriteTimeout    int `yaml:"writeTimeout"`    // Write timeout in seconds
-	
+	MaxActive      int `yaml:"maxActive"`      // Maximum number of active connections
+	MaxIdle        int `yaml:"maxIdle"`        // Maximum number of idle connections
+	IdleTimeout    int `yaml:"idleTimeout"`    // Idle timeout in seconds
+	ConnectTimeout int `yaml:"connectTimeout"` // Connection timeout in seconds
+	ReadTimeout    int `yaml:"readTimeout"`    // Read timeout in seconds
+	WriteTimeout   int `yaml:"writeTimeout"`   // Write timeout in seconds
+
 	// TLS settings
 	TLS *RedisTLS `yaml:"tls,omitempty"`
-	
+
 	// Cluster settings
-	Cluster        bool     `yaml:"cluster"`
-	ClusterNodes   []string `yaml:"clusterNodes"`
-	
+	Cluster      bool     `yaml:"cluster"`
+	ClusterNodes []string `yaml:"clusterNodes"`
+
 	// Sentinel settings
-	Sentinel       bool     `yaml:"sentinel"`
-	MasterName     string   `yaml:"masterName"`
-	SentinelNodes  []string `yaml:"sentinelNodes"`
+	Sentinel      bool     `yaml:"sentinel"`
+	MasterName    string   `yaml:"masterName"`
+	SentinelNodes []string `yaml:"sentinelNodes"`
 }
 
 // RedisTLS configuration
@@ -490,14 +487,14 @@ type RedisTLS struct {
 // RateLimitStorage defines available rate limit storage backends
 type RateLimitStorage struct {
 	// Default storage to use if not specified in route
-	Default string                        `yaml:"default"`
+	Default string `yaml:"default"`
 	// Available storage configurations
-	Stores  map[string]*RateLimitStore    `yaml:"stores"`
+	Stores map[string]*RateLimitStore `yaml:"stores"`
 }
 
 // RateLimitStore defines a single rate limit storage configuration
 type RateLimitStore struct {
-	Type   string  `yaml:"type"`   // "memory" or "redis"
-	Redis  *Redis  `yaml:"redis,omitempty"`
+	Type  string `yaml:"type"` // "memory" or "redis"
+	Redis *Redis `yaml:"redis,omitempty"`
 	// Memory storage doesn't need configuration
 }

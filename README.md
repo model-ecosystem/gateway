@@ -168,7 +168,6 @@ gateway/
 │   └── mock/                # Mock servers and data
 ├── examples/                # Example applications
 ├── deployments/             # Deployment configurations
-├── scripts/                 # Build and development scripts
 └── scripts/                 # Build and development scripts
 ```
 

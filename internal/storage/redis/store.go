@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"time"
-	
+
 	"gateway/internal/storage"
 )
 
@@ -31,7 +31,7 @@ func NewStore(client Client, config *storage.LimiterStoreConfig) *Store {
 	if config == nil {
 		config = storage.DefaultConfig()
 	}
-	
+
 	// Lua script for atomic rate limiting with sliding window
 	script := `
 		local key = KEYS[1]
@@ -60,7 +60,7 @@ func NewStore(client Client, config *storage.LimiterStoreConfig) *Store {
 			return {0, burst - current}
 		end
 	`
-	
+
 	return &Store{
 		client: client,
 		config: config,
@@ -77,35 +77,35 @@ func (s *Store) Allow(ctx context.Context, key string, limit, burst int, window 
 func (s *Store) AllowN(ctx context.Context, key string, n, limit, burst int, window time.Duration) (bool, int, time.Time, error) {
 	now := time.Now()
 	resetAt := now.Add(window)
-	
+
 	// Use Redis key with prefix
 	redisKey := fmt.Sprintf("ratelimit:%s", key)
-	
+
 	// Execute Lua script
 	result, err := s.client.Eval(ctx, s.script, []string{redisKey},
-		now.UnixMilli(),     // current time in milliseconds
+		now.UnixMilli(),       // current time in milliseconds
 		int(window.Seconds()), // window in seconds
-		limit,               // requests per window
-		burst,               // burst capacity
-		n,                   // number of requests
+		limit,                 // requests per window
+		burst,                 // burst capacity
+		n,                     // number of requests
 	)
-	
+
 	if err != nil {
 		return false, 0, resetAt, fmt.Errorf("failed to execute rate limit script: %w", err)
 	}
-	
+
 	// Parse result
 	res, ok := result.([]interface{})
 	if !ok || len(res) != 2 {
 		return false, 0, resetAt, errors.New("invalid rate limit script result")
 	}
-	
+
 	allowed, ok1 := res[0].(int64)
 	remaining, ok2 := res[1].(int64)
 	if !ok1 || !ok2 {
 		return false, 0, resetAt, errors.New("invalid rate limit script result types")
 	}
-	
+
 	return allowed == 1, int(remaining), resetAt, nil
 }
 

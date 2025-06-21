@@ -50,7 +50,7 @@ func sseHandler(w http.ResponseWriter, r *http.Request) {
 
 		case t := <-ticker.C:
 			eventCount++
-			
+
 			// Send different types of events
 			switch eventCount % 3 {
 			case 0:
@@ -58,7 +58,7 @@ func sseHandler(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, "id: %d\n", eventCount)
 				fmt.Fprintf(w, "event: tick\n")
 				fmt.Fprintf(w, "data: Event %d at %s\n\n", eventCount, t.Format(time.RFC3339))
-				
+
 			case 1:
 				// Multi-line data event
 				fmt.Fprintf(w, "id: %d\n", eventCount)
@@ -68,12 +68,12 @@ func sseHandler(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, "data:   \"time\": \"%s\",\n", t.Format(time.RFC3339))
 				fmt.Fprintf(w, "data:   \"server\": \"%s\"\n", *addr)
 				fmt.Fprintf(w, "data: }\n\n")
-				
+
 			case 2:
 				// Simple data-only event
 				fmt.Fprintf(w, "data: Heartbeat %d\n\n", eventCount)
 			}
-			
+
 			flusher.Flush()
 
 			// Send comment as keepalive every 10 events
@@ -90,7 +90,7 @@ func notificationHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	
+
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "SSE not supported", http.StatusInternalServerError)
@@ -121,12 +121,12 @@ func notificationHandler(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-done:
 			return
-			
+
 		case <-ticker.C:
 			notificationCount++
 			fmt.Fprintf(w, "id: notif-%d\n", notificationCount)
 			fmt.Fprintf(w, "event: notification\n")
-			fmt.Fprintf(w, "data: Notification %d for %s from server %s\n\n", 
+			fmt.Fprintf(w, "data: Notification %d for %s from server %s\n\n",
 				notificationCount, user, *addr)
 			flusher.Flush()
 		}

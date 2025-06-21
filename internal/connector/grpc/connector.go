@@ -10,7 +10,7 @@ import (
 	"os"
 	"sync"
 	"time"
-	
+
 	"gateway/internal/config"
 	"gateway/internal/connector"
 	"gateway/internal/core"
@@ -312,7 +312,7 @@ func (c *Connector) loadProtoDescriptors(cfg *config.GRPCConfig) error {
 	if cfg.ProtoDescriptorBase64 != "" {
 		return c.transcoder.LoadProtoDescriptorBase64(cfg.ProtoDescriptorBase64)
 	}
-	
+
 	// Try to load from file
 	if cfg.ProtoDescriptor != "" {
 		data, err := os.ReadFile(cfg.ProtoDescriptor)
@@ -321,7 +321,7 @@ func (c *Connector) loadProtoDescriptors(cfg *config.GRPCConfig) error {
 		}
 		return c.transcoder.LoadProtoDescriptor(data)
 	}
-	
+
 	return nil
 }
 

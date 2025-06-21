@@ -161,7 +161,7 @@ func TestRouterRoute(t *testing.T) {
 	}
 
 	router := NewRouter(registry)
-	
+
 	// Add rules
 	rules := []core.RouteRule{
 		{
@@ -201,52 +201,52 @@ func TestRouterRoute(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		request  core.Request
-		wantErr  bool
+		name      string
+		request   core.Request
+		wantErr   bool
 		errorType errors.ErrorType
-		service  string
+		service   string
 	}{
 		{
-			name:     "exact match GET",
-			request:  &mockRequest{method: "GET", path: "/api/users"},
-			wantErr:  false,
-			service:  "user-service",
+			name:    "exact match GET",
+			request: &mockRequest{method: "GET", path: "/api/users"},
+			wantErr: false,
+			service: "user-service",
 		},
 		{
-			name:     "exact match POST",
-			request:  &mockRequest{method: "POST", path: "/api/users"},
-			wantErr:  false,
-			service:  "user-service",
+			name:    "exact match POST",
+			request: &mockRequest{method: "POST", path: "/api/users"},
+			wantErr: false,
+			service: "user-service",
 		},
 		{
-			name:     "method not allowed",
-			request:  &mockRequest{method: "DELETE", path: "/api/users"},
-			wantErr:  true,
+			name:      "method not allowed",
+			request:   &mockRequest{method: "DELETE", path: "/api/users"},
+			wantErr:   true,
 			errorType: errors.ErrorTypeNotFound,
 		},
 		{
-			name:     "path parameter",
-			request:  &mockRequest{method: "GET", path: "/api/users/123"},
-			wantErr:  false,
-			service:  "user-service",
+			name:    "path parameter",
+			request: &mockRequest{method: "GET", path: "/api/users/123"},
+			wantErr: false,
+			service: "user-service",
 		},
 		{
-			name:     "wildcard match",
-			request:  &mockRequest{method: "GET", path: "/api/files/documents/report.pdf"},
-			wantErr:  false,
-			service:  "file-service",
+			name:    "wildcard match",
+			request: &mockRequest{method: "GET", path: "/api/files/documents/report.pdf"},
+			wantErr: false,
+			service: "file-service",
 		},
 		{
-			name:     "route not found",
-			request:  &mockRequest{method: "GET", path: "/api/unknown"},
-			wantErr:  true,
+			name:      "route not found",
+			request:   &mockRequest{method: "GET", path: "/api/unknown"},
+			wantErr:   true,
 			errorType: errors.ErrorTypeNotFound,
 		},
 		{
-			name:     "no healthy instances",
-			request:  &mockRequest{method: "GET", path: "/api/unhealthy"},
-			wantErr:  true,
+			name:      "no healthy instances",
+			request:   &mockRequest{method: "GET", path: "/api/unhealthy"},
+			wantErr:   true,
 			errorType: errors.ErrorTypeUnavailable,
 		},
 	}
@@ -255,7 +255,7 @@ func TestRouterRoute(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := router.Route(ctx, tt.request)
-			
+
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Route() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -300,14 +300,14 @@ func TestRouterLoadBalancing(t *testing.T) {
 	}
 
 	router := NewRouter(registry)
-	
+
 	rule := core.RouteRule{
 		ID:          "lb-test",
 		Path:        "/api/lb",
 		ServiceName: "lb-service",
 		LoadBalance: core.LoadBalanceRoundRobin,
 	}
-	
+
 	if err := router.AddRule(rule); err != nil {
 		t.Fatalf("Failed to add rule: %v", err)
 	}
@@ -344,7 +344,7 @@ func TestRouterMethodMatching(t *testing.T) {
 	}
 
 	router := NewRouter(registry)
-	
+
 	// Add rule with no methods (should match all)
 	rule := core.RouteRule{
 		ID:          "all-methods",
@@ -352,7 +352,7 @@ func TestRouterMethodMatching(t *testing.T) {
 		ServiceName: "method-service",
 		// Methods is empty, should match all
 	}
-	
+
 	if err := router.AddRule(rule); err != nil {
 		t.Fatalf("Failed to add rule: %v", err)
 	}
@@ -365,7 +365,7 @@ func TestRouterMethodMatching(t *testing.T) {
 		t.Run("method_"+method, func(t *testing.T) {
 			req := &mockRequest{method: method, path: "/api/all"}
 			result, err := router.Route(ctx, req)
-			
+
 			if err != nil {
 				t.Errorf("Route() failed for method %s: %v", method, err)
 			}
@@ -393,18 +393,18 @@ func TestRouterPathConversion(t *testing.T) {
 		t.Run(tt.input, func(t *testing.T) {
 			// Create a new router for each test to avoid conflicts
 			router := NewRouter(nil)
-			
+
 			rule := core.RouteRule{
 				ID:          "test",
 				Path:        tt.input,
 				ServiceName: "test-service",
 				// No methods specified, so it will register without method prefix
 			}
-			
+
 			if err := router.AddRule(rule); err != nil {
 				t.Fatalf("Failed to add rule: %v", err)
 			}
-			
+
 			// Check if the pattern was registered correctly
 			// Since no methods are specified, it should be registered without method prefix
 			found := false
@@ -414,7 +414,7 @@ func TestRouterPathConversion(t *testing.T) {
 					break
 				}
 			}
-			
+
 			if !found {
 				t.Errorf("Expected pattern %s not found in routes (got: %v)", tt.expected, router.routes)
 			}

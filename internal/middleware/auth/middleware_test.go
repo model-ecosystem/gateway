@@ -17,14 +17,14 @@ type mockRequest struct {
 	headers map[string][]string
 }
 
-func (r *mockRequest) ID() string                     { return "test-id" }
-func (r *mockRequest) Method() string                 { return "GET" }
-func (r *mockRequest) Path() string                   { return r.path }
-func (r *mockRequest) URL() string                    { return "http://test" + r.path }
-func (r *mockRequest) RemoteAddr() string             { return "127.0.0.1:12345" }
-func (r *mockRequest) Headers() map[string][]string   { return r.headers }
-func (r *mockRequest) Body() io.ReadCloser            { return nil }
-func (r *mockRequest) Context() context.Context       { return context.Background() }
+func (r *mockRequest) ID() string                   { return "test-id" }
+func (r *mockRequest) Method() string               { return "GET" }
+func (r *mockRequest) Path() string                 { return r.path }
+func (r *mockRequest) URL() string                  { return "http://test" + r.path }
+func (r *mockRequest) RemoteAddr() string           { return "127.0.0.1:12345" }
+func (r *mockRequest) Headers() map[string][]string { return r.headers }
+func (r *mockRequest) Body() io.ReadCloser          { return nil }
+func (r *mockRequest) Context() context.Context     { return context.Background() }
 
 // mockResponse implements core.Response for testing
 type mockResponse struct {

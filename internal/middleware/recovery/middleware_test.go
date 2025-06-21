@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"strings"
 	"testing"
-	
+
 	"gateway/internal/core"
 	gwerrors "gateway/pkg/errors"
 )
@@ -21,7 +21,7 @@ type mockRequest struct {
 	headers map[string][]string
 }
 
-func (r *mockRequest) ID() string                    { return "test-request-id" }
+func (r *mockRequest) ID() string                   { return "test-request-id" }
 func (r *mockRequest) Method() string               { return r.method }
 func (r *mockRequest) Path() string                 { return r.path }
 func (r *mockRequest) URL() string                  { return "http://example.com" + r.path }
@@ -43,32 +43,32 @@ func (r *mockResponse) Headers() map[string][]string { return r.headers }
 
 func TestRecoveryMiddleware_RecoversPanic(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	
+
 	config := Config{
 		StackTrace: false,
 	}
-	
+
 	middleware := Middleware(config, logger)
-	
+
 	// Handler that panics
 	panicHandler := core.Handler(func(ctx context.Context, req core.Request) (core.Response, error) {
 		panic("test panic")
 	})
-	
+
 	wrapped := middleware(panicHandler)
-	
+
 	req := &mockRequest{
 		method: "GET",
 		path:   "/test",
 	}
-	
+
 	resp, err := wrapped(context.Background(), req)
-	
+
 	// Should return error instead of panic
 	if err == nil {
 		t.Error("Expected error from panic recovery")
 	}
-	
+
 	// Should be internal error
 	var gwErr *gwerrors.Error
 	if !errors.As(err, &gwErr) {
@@ -76,7 +76,7 @@ func TestRecoveryMiddleware_RecoversPanic(t *testing.T) {
 	} else if gwErr.Type != gwerrors.ErrorTypeInternal {
 		t.Errorf("Expected internal error type, got %v", gwErr.Type)
 	}
-	
+
 	// Response should be nil
 	if resp != nil {
 		t.Error("Expected nil response")
@@ -85,9 +85,9 @@ func TestRecoveryMiddleware_RecoversPanic(t *testing.T) {
 
 func TestRecoveryMiddleware_NoPanic(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	
+
 	middleware := Default(logger)
-	
+
 	// Handler that doesn't panic
 	normalHandler := core.Handler(func(ctx context.Context, req core.Request) (core.Response, error) {
 		return &mockResponse{
@@ -95,21 +95,21 @@ func TestRecoveryMiddleware_NoPanic(t *testing.T) {
 			headers:    make(map[string][]string),
 		}, nil
 	})
-	
+
 	wrapped := middleware(normalHandler)
-	
+
 	req := &mockRequest{
 		method: "GET",
 		path:   "/test",
 	}
-	
+
 	resp, err := wrapped(context.Background(), req)
-	
+
 	// Should pass through normally
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
-	
+
 	if resp == nil {
 		t.Error("Expected response")
 	} else if resp.StatusCode() != 200 {
@@ -119,10 +119,10 @@ func TestRecoveryMiddleware_NoPanic(t *testing.T) {
 
 func TestRecoveryMiddleware_PanicHandler(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	
+
 	var capturedPanic interface{}
 	var capturedStack []byte
-	
+
 	config := Config{
 		StackTrace: true,
 		PanicHandler: func(ctx context.Context, recovered interface{}, stack []byte) {
@@ -130,36 +130,36 @@ func TestRecoveryMiddleware_PanicHandler(t *testing.T) {
 			capturedStack = stack
 		},
 	}
-	
+
 	middleware := Middleware(config, logger)
-	
+
 	// Handler that panics
 	panicHandler := core.Handler(func(ctx context.Context, req core.Request) (core.Response, error) {
 		panic("custom panic message")
 	})
-	
+
 	wrapped := middleware(panicHandler)
-	
+
 	req := &mockRequest{
 		method: "POST",
 		path:   "/api/test",
 	}
-	
+
 	_, err := wrapped(context.Background(), req)
-	
+
 	// Verify panic handler was called
 	if capturedPanic == nil {
 		t.Error("Panic handler not called")
 	}
-	
+
 	if panicMsg, ok := capturedPanic.(string); !ok || panicMsg != "custom panic message" {
 		t.Errorf("Expected panic message 'custom panic message', got %v", capturedPanic)
 	}
-	
+
 	if len(capturedStack) == 0 {
 		t.Error("Expected stack trace")
 	}
-	
+
 	// Check error details
 	var gwErr *gwerrors.Error
 	if errors.As(err, &gwErr) {
@@ -171,30 +171,30 @@ func TestRecoveryMiddleware_PanicHandler(t *testing.T) {
 
 func TestRecoveryMiddleware_ErrorPassthrough(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	
+
 	middleware := Default(logger)
-	
+
 	expectedErr := errors.New("handler error")
-	
+
 	// Handler that returns error
 	errorHandler := core.Handler(func(ctx context.Context, req core.Request) (core.Response, error) {
 		return nil, expectedErr
 	})
-	
+
 	wrapped := middleware(errorHandler)
-	
+
 	req := &mockRequest{
 		method: "GET",
 		path:   "/test",
 	}
-	
+
 	resp, err := wrapped(context.Background(), req)
-	
+
 	// Should pass through error unchanged
 	if err != expectedErr {
 		t.Errorf("Expected original error, got %v", err)
 	}
-	
+
 	if resp != nil {
 		t.Error("Expected nil response")
 	}
@@ -202,7 +202,7 @@ func TestRecoveryMiddleware_ErrorPassthrough(t *testing.T) {
 
 func TestRecoveryMiddleware_PanicTypes(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	
+
 	tests := []struct {
 		name       string
 		panicValue interface{}
@@ -213,40 +213,40 @@ func TestRecoveryMiddleware_PanicTypes(t *testing.T) {
 		{"nil panic", nil},
 		{"struct panic", struct{ msg string }{msg: "struct value"}},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			middleware := Default(logger)
-			
+
 			panicHandler := core.Handler(func(ctx context.Context, req core.Request) (core.Response, error) {
 				panic(tt.panicValue)
 			})
-			
+
 			wrapped := middleware(panicHandler)
-			
+
 			req := &mockRequest{
 				method: "GET",
 				path:   "/test",
 			}
-			
+
 			_, err := wrapped(context.Background(), req)
-			
+
 			if err == nil {
 				t.Error("Expected error from panic recovery")
 			}
-			
+
 			// Verify error contains panic value
 			var gwErr *gwerrors.Error
 			if errors.As(err, &gwErr) {
 				panicDetail := gwErr.Details["panic"].(string)
 				expectedDetail := fmt.Sprintf("%v", tt.panicValue)
-				
+
 				// Special case for nil panic - Go runtime converts it to a specific message
 				if tt.panicValue == nil && strings.Contains(panicDetail, "nil") {
 					// Accept any message that mentions nil (e.g., "panic called with nil argument" or "<nil>")
 					return
 				}
-				
+
 				if !strings.Contains(panicDetail, expectedDetail) {
 					t.Errorf("Expected panic detail to contain %v, got %s", expectedDetail, panicDetail)
 				}

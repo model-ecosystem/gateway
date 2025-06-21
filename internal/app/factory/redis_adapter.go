@@ -1,9 +1,9 @@
 package factory
 
 import (
-	goredis "github.com/redis/go-redis/v9"
 	"gateway/internal/config"
 	"gateway/internal/storage/redis"
+	goredis "github.com/redis/go-redis/v9"
 )
 
 // RedisClientFactoryAdapter adapts our Redis factory to the storage interface

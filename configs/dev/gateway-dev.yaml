@@ -7,9 +7,10 @@ gateway:
       writeTimeout: 30
       tls:
         enabled: true
-        certFile: "/path/to/cert.pem"
-        keyFile: "/path/to/key.pem"
-        minVersion: "TLS1.2"
+        # Use relative paths or environment variables for portability
+        certFile: "./certs/server.crt"  # Relative to working directory
+        keyFile: "./certs/server.key"   # Or use ${TLS_KEY_FILE} env var
+        minVersion: "1.2"                # Consistent format with other configs
   backend:
     http:
       # Connection pool settings

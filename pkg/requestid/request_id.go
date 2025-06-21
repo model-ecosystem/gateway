@@ -18,14 +18,14 @@ var counter atomic.Uint64
 func GenerateRequestID() string {
 	// Get current timestamp in milliseconds
 	timestamp := time.Now().UnixMilli()
-	
+
 	// Generate 4 bytes of random data
 	randomBytes := make([]byte, 4)
 	if _, err := rand.Read(randomBytes); err != nil {
 		// Fallback to counter if random generation fails
 		return fmt.Sprintf("%d-%d", timestamp, counter.Add(1))
 	}
-	
+
 	// Format: timestamp-randomhex
 	return fmt.Sprintf("%d-%s", timestamp, hex.EncodeToString(randomBytes))
 }

@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"time"
-	
+
 	"gateway/internal/core"
 	"gateway/internal/metrics"
 )
@@ -38,29 +38,29 @@ func Middleware(m *metrics.Metrics) core.Middleware {
 				// If no HTTP request in context, just pass through
 				return next(ctx, req)
 			}
-			
+
 			// Normalize path for metrics
 			path := metrics.NormalizePath(req.Path())
 			method := req.Method()
-			
+
 			// Track active requests
 			m.ActiveRequests.WithLabelValues(method, path).Inc()
 			defer m.ActiveRequests.WithLabelValues(method, path).Dec()
-			
+
 			// Track request size
 			if httpReq.ContentLength > 0 {
 				m.RequestSize.WithLabelValues(method, path).Observe(float64(httpReq.ContentLength))
 			}
-			
+
 			// Time the request
 			start := time.Now()
-			
+
 			// Call next handler
 			resp, err := next(ctx, req)
-			
+
 			// Calculate duration
 			duration := time.Since(start).Seconds()
-			
+
 			// Determine status code
 			statusCode := 200
 			if resp != nil {
@@ -71,17 +71,17 @@ func Middleware(m *metrics.Metrics) core.Middleware {
 				statusCode = 500
 			}
 			statusStr := strconv.Itoa(statusCode)
-			
+
 			// Record metrics
 			m.RequestsTotal.WithLabelValues(method, path, statusStr).Inc()
 			m.RequestDuration.WithLabelValues(method, path, statusStr).Observe(duration)
-			
+
 			// Track response size if available
 			if resp != nil && resp.Body() != nil {
 				// We can't easily measure response size without buffering the entire response
 				// This would need to be done at the HTTP adapter level
 			}
-			
+
 			return resp, err
 		}
 	}

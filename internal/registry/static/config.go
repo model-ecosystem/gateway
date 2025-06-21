@@ -13,10 +13,10 @@ type Service struct {
 
 // Instance represents a service instance
 type Instance struct {
-	ID      string `yaml:"id"`
-	Address string `yaml:"address"`
-	Port    int    `yaml:"port"`
-	Weight  int    `yaml:"weight"`
-	Health  string `yaml:"health"`
+	ID      string   `yaml:"id"`
+	Address string   `yaml:"address"`
+	Port    int      `yaml:"port"`
+	Weight  int      `yaml:"weight"`
+	Health  string   `yaml:"health"`
 	Tags    []string `yaml:"tags"`
 }

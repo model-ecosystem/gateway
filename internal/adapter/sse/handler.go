@@ -61,7 +61,16 @@ func (h *Handler) Handle(ctx context.Context, req core.Request) (core.Response, 
 
 	// Add X-Forwarded headers
 	headers.Set("X-Forwarded-For", req.RemoteAddr())
-	headers.Set("X-Forwarded-Proto", "http")
+
+	// Set X-Forwarded-Proto based on incoming request
+	if proto := req.Headers()["X-Forwarded-Proto"]; len(proto) > 0 {
+		// Keep existing header if already set (e.g., from a proxy)
+		headers.Set("X-Forwarded-Proto", proto[0])
+	} else {
+		// Default to http - the HTTP adapter should have already set this correctly
+		headers.Set("X-Forwarded-Proto", "http")
+	}
+
 	if host := req.Headers()["Host"]; len(host) > 0 {
 		headers.Set("X-Forwarded-Host", host[0])
 	}
@@ -112,7 +121,7 @@ func isHopByHopHeader(header string) bool {
 		"Transfer-Encoding",
 		"Upgrade",
 	}
-	
+
 	header = strings.ToLower(header)
 	for _, h := range hopByHopHeaders {
 		if strings.ToLower(h) == header {

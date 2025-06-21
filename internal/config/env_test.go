@@ -19,24 +19,24 @@ func TestLoadEnv(t *testing.T) {
 			}
 		}
 	}()
-	
+
 	// Set test environment variables
 	testEnvVars := map[string]string{
-		"GATEWAY_GATEWAY_FRONTEND_HTTP_HOST": "127.0.0.1",
-		"GATEWAY_GATEWAY_FRONTEND_HTTP_PORT": "9090",
-		"GATEWAY_GATEWAY_REGISTRY_TYPE": "docker",
-		"GATEWAY_GATEWAY_METRICS_ENABLED": "true",
-		"GATEWAY_GATEWAY_METRICS_PATH": "/custom-metrics",
-		"GATEWAY_GATEWAY_CORS_ENABLED": "true",
-		"GATEWAY_GATEWAY_CORS_ALLOWEDORIGINS": "https://example.com,https://app.example.com",
+		"GATEWAY_GATEWAY_FRONTEND_HTTP_HOST":    "127.0.0.1",
+		"GATEWAY_GATEWAY_FRONTEND_HTTP_PORT":    "9090",
+		"GATEWAY_GATEWAY_REGISTRY_TYPE":         "docker",
+		"GATEWAY_GATEWAY_METRICS_ENABLED":       "true",
+		"GATEWAY_GATEWAY_METRICS_PATH":          "/custom-metrics",
+		"GATEWAY_GATEWAY_CORS_ENABLED":          "true",
+		"GATEWAY_GATEWAY_CORS_ALLOWEDORIGINS":   "https://example.com,https://app.example.com",
 		"GATEWAY_GATEWAY_CORS_ALLOWCREDENTIALS": "true",
-		"GATEWAY_GATEWAY_CORS_MAXAGE": "7200",
+		"GATEWAY_GATEWAY_CORS_MAXAGE":           "7200",
 	}
-	
+
 	for k, v := range testEnvVars {
 		os.Setenv(k, v)
 	}
-	
+
 	// Create a config with some default values
 	cfg := &Config{
 		Gateway: Gateway{
@@ -51,13 +51,13 @@ func TestLoadEnv(t *testing.T) {
 			},
 		},
 	}
-	
+
 	// Load environment variables
 	err := LoadEnv(cfg)
 	if err != nil {
 		t.Fatalf("LoadEnv failed: %v", err)
 	}
-	
+
 	// Verify values were overridden
 	tests := []struct {
 		name     string
@@ -73,7 +73,7 @@ func TestLoadEnv(t *testing.T) {
 		{"CORS Credentials", cfg.Gateway.CORS != nil && cfg.Gateway.CORS.AllowCredentials, true},
 		{"CORS MaxAge", cfg.Gateway.CORS != nil && cfg.Gateway.CORS.MaxAge == 7200, true},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if !reflect.DeepEqual(tt.got, tt.expected) {
@@ -81,11 +81,11 @@ func TestLoadEnv(t *testing.T) {
 			}
 		})
 	}
-	
+
 	// Check CORS allowed origins
 	if cfg.Gateway.CORS != nil && len(cfg.Gateway.CORS.AllowedOrigins) == 2 {
 		if cfg.Gateway.CORS.AllowedOrigins[0] != "https://example.com" ||
-		   cfg.Gateway.CORS.AllowedOrigins[1] != "https://app.example.com" {
+			cfg.Gateway.CORS.AllowedOrigins[1] != "https://app.example.com" {
 			t.Errorf("CORS AllowedOrigins not parsed correctly: %v", cfg.Gateway.CORS.AllowedOrigins)
 		}
 	} else {
@@ -105,7 +105,7 @@ func TestLoadEnv_InvalidValues(t *testing.T) {
 			}
 		}
 	}()
-	
+
 	tests := []struct {
 		name    string
 		envVar  string
@@ -131,15 +131,15 @@ func TestLoadEnv_InvalidValues(t *testing.T) {
 			wantErr: true,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			os.Clearenv()
 			os.Setenv(tt.envVar, tt.value)
-			
+
 			cfg := &Config{}
 			err := LoadEnv(cfg)
-			
+
 			if (err != nil) != tt.wantErr {
 				t.Errorf("LoadEnv() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -150,19 +150,19 @@ func TestLoadEnv_InvalidValues(t *testing.T) {
 func TestEnvExample(t *testing.T) {
 	cfg := &Config{}
 	examples := EnvExample(cfg)
-	
+
 	// Check that we get some examples
 	if len(examples) == 0 {
 		t.Error("Expected some environment variable examples")
 	}
-	
+
 	// Check for some expected examples
 	expectedPrefixes := []string{
 		"GATEWAY_GATEWAY_FRONTEND_HTTP_PORT=",
 		"GATEWAY_GATEWAY_FRONTEND_HTTP_HOST=",
 		"GATEWAY_GATEWAY_REGISTRY_TYPE=",
 	}
-	
+
 	for _, prefix := range expectedPrefixes {
 		found := false
 		for _, example := range examples {
@@ -189,11 +189,11 @@ func TestHasEnvVarsWithPrefix(t *testing.T) {
 			}
 		}
 	}()
-	
+
 	os.Clearenv()
 	os.Setenv("GATEWAY_TEST_VAR", "value")
 	os.Setenv("OTHER_VAR", "value")
-	
+
 	tests := []struct {
 		prefix string
 		want   bool
@@ -203,7 +203,7 @@ func TestHasEnvVarsWithPrefix(t *testing.T) {
 		{"OTHER", true},
 		{"NOTFOUND", false},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.prefix, func(t *testing.T) {
 			got := hasEnvVarsWithPrefix(tt.prefix)

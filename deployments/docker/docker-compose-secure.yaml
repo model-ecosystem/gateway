@@ -1,15 +1,14 @@
 version: '3.8'
 
 services:
-  # Gateway with Docker service discovery
+  # Gateway with static service discovery (secure alternative)
   gateway:
     build: .
     ports:
       - "8080:8080"     # HTTP
       - "8081:8081"     # WebSocket  
     volumes:
-      - ./configs/gateway-docker.yaml:/app/configs/gateway.yaml:ro
-      # Docker socket mount removed for security - use static config or external discovery
+      - ./configs/gateway-static.yaml:/app/configs/gateway.yaml:ro
     environment:
       - LOG_LEVEL=debug
     depends_on:
@@ -17,6 +16,20 @@ services:
       - backend2
     networks:
       - gateway-net
+
+  # For Docker service discovery in production, use a secure proxy
+  # docker-socket-proxy:
+  #   image: tecnativa/docker-socket-proxy
+  #   environment:
+  #     - CONTAINERS=1  # Allow read access to containers
+  #     - NETWORKS=1    # Allow read access to networks
+  #     - SERVICES=1    # Allow read access to services
+  #     - TASKS=1       # Allow read access to tasks (for swarm)
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock:ro
+  #   networks:
+  #     - proxy-net
+  #   restart: unless-stopped
 
   # Example backend service 1
   backend1:
@@ -71,3 +84,5 @@ services:
 networks:
   gateway-net:
     driver: bridge
+  # proxy-net:
+  #   driver: bridge

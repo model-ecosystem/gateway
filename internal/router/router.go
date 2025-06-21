@@ -107,7 +107,7 @@ func (r *Router) Route(ctx context.Context, req core.Request) (*core.RouteResult
 
 	// Look up the rule by pattern
 	var matched *core.RouteRule
-	
+
 	// First try method-specific pattern
 	methodPattern := req.Method() + " " + pattern
 	if rule, ok := r.routes[methodPattern]; ok {
@@ -141,7 +141,7 @@ func (r *Router) Route(ctx context.Context, req core.Request) (*core.RouteResult
 
 	// Select instance
 	balancer := r.balancers[matched.ServiceName]
-	
+
 	// Check if balancer supports request-based selection
 	var instance *core.ServiceInstance
 	if requestAwareBalancer, ok := balancer.(core.RequestAwareLoadBalancer); ok {
@@ -149,7 +149,7 @@ func (r *Router) Route(ctx context.Context, req core.Request) (*core.RouteResult
 	} else {
 		instance, err = balancer.Select(instances)
 	}
-	
+
 	if err != nil {
 		return nil, err
 	}

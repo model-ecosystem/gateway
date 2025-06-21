@@ -83,7 +83,7 @@ func TestRateLimitingIntegration(t *testing.T) {
 						Path:           "/limited/*",
 						ServiceName:    "test-service",
 						LoadBalance:    "round_robin",
-						Timeout:        5,
+						Timeout:        10,
 						RateLimit:      5,  // 5 requests per second
 						RateLimitBurst: 10, // Allow burst of 10
 					},
@@ -118,7 +118,7 @@ func TestRateLimitingIntegration(t *testing.T) {
 	defer server.Stop(context.Background())
 
 	// Wait for server to be ready
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 
 	// Get the gateway URL - using the configured port
 	gatewayURL := fmt.Sprintf("http://127.0.0.1:%d", cfg.Gateway.Frontend.HTTP.Port)

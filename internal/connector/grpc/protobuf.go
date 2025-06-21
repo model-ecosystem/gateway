@@ -4,7 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"strings"
-	
+
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protodesc"
@@ -39,7 +39,7 @@ func (r *ProtoRegistry) LoadDescriptorSet(data []byte) error {
 	if err := proto.Unmarshal(data, &fds); err != nil {
 		return fmt.Errorf("failed to unmarshal descriptor set: %w", err)
 	}
-	
+
 	return r.LoadDescriptorSetProto(&fds)
 }
 
@@ -51,18 +51,18 @@ func (r *ProtoRegistry) LoadDescriptorSetProto(fds *descriptorpb.FileDescriptorS
 		if err != nil {
 			return fmt.Errorf("failed to create file descriptor: %w", err)
 		}
-		
+
 		if err := r.files.RegisterFile(fd); err != nil {
 			return fmt.Errorf("failed to register file: %w", err)
 		}
-		
+
 		// Register services and methods
 		services := fd.Services()
 		for i := 0; i < services.Len(); i++ {
 			service := services.Get(i)
 			serviceName := string(service.FullName())
 			r.services[serviceName] = service
-			
+
 			methods := service.Methods()
 			for j := 0; j < methods.Len(); j++ {
 				method := methods.Get(j)
@@ -70,7 +70,7 @@ func (r *ProtoRegistry) LoadDescriptorSetProto(fds *descriptorpb.FileDescriptorS
 				r.methods[methodPath] = method
 			}
 		}
-		
+
 		// Register message types
 		messages := fd.Messages()
 		for i := 0; i < messages.Len(); i++ {
@@ -84,7 +84,7 @@ func (r *ProtoRegistry) LoadDescriptorSetProto(fds *descriptorpb.FileDescriptorS
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -113,26 +113,26 @@ func (r *ProtoRegistry) JSONToProto(jsonData []byte, messageName string) ([]byte
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Create new message instance
 	msg := msgType.New()
-	
+
 	// Unmarshal JSON
 	unmarshaler := protojson.UnmarshalOptions{
 		DiscardUnknown: true,
 		AllowPartial:   true,
 	}
-	
+
 	if err := unmarshaler.Unmarshal(jsonData, msg.Interface()); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON: %w", err)
 	}
-	
+
 	// Marshal to protobuf
 	protoData, err := proto.Marshal(msg.Interface())
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal protobuf: %w", err)
 	}
-	
+
 	return protoData, nil
 }
 
@@ -143,15 +143,15 @@ func (r *ProtoRegistry) ProtoToJSON(protoData []byte, messageName string) ([]byt
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Create new message instance
 	msg := msgType.New()
-	
+
 	// Unmarshal protobuf
 	if err := proto.Unmarshal(protoData, msg.Interface()); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal protobuf: %w", err)
 	}
-	
+
 	// Marshal to JSON
 	marshaler := protojson.MarshalOptions{
 		Multiline:       false,
@@ -159,12 +159,12 @@ func (r *ProtoRegistry) ProtoToJSON(protoData []byte, messageName string) ([]byt
 		UseProtoNames:   true,
 		EmitUnpopulated: true,
 	}
-	
+
 	jsonData, err := marshaler.Marshal(msg.Interface())
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal JSON: %w", err)
 	}
-	
+
 	return jsonData, nil
 }
 
@@ -175,10 +175,10 @@ func (r *ProtoRegistry) TranscodeRequest(jsonData []byte, methodPath string) ([]
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Get input message type name
 	inputType := string(method.Input().FullName())
-	
+
 	// Convert JSON to protobuf
 	return r.JSONToProto(jsonData, inputType)
 }
@@ -190,10 +190,10 @@ func (r *ProtoRegistry) TranscodeResponse(protoData []byte, methodPath string) (
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Get output message type name
 	outputType := string(method.Output().FullName())
-	
+
 	// Convert protobuf to JSON
 	return r.ProtoToJSON(protoData, outputType)
 }
@@ -204,7 +204,7 @@ func (r *ProtoRegistry) LoadDescriptorFromBase64(base64Data string) error {
 	if err != nil {
 		return fmt.Errorf("failed to decode base64: %w", err)
 	}
-	
+
 	return r.LoadDescriptorSet(data)
 }
 
@@ -214,15 +214,15 @@ func (r *ProtoRegistry) GetServiceMethods(serviceName string) ([]string, error) 
 	if !ok {
 		return nil, fmt.Errorf("service not found: %s", serviceName)
 	}
-	
+
 	methods := service.Methods()
 	result := make([]string, 0, methods.Len())
-	
+
 	for i := 0; i < methods.Len(); i++ {
 		method := methods.Get(i)
 		result = append(result, string(method.Name()))
 	}
-	
+
 	return result, nil
 }
 
@@ -232,13 +232,13 @@ func (r *ProtoRegistry) GetMethodInfo(methodPath string) (*MethodInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &MethodInfo{
-		Name:           string(method.Name()),
-		FullName:       string(method.FullName()),
-		InputType:      string(method.Input().FullName()),
-		OutputType:     string(method.Output().FullName()),
-		IsStreaming:    method.IsStreamingClient() || method.IsStreamingServer(),
+		Name:            string(method.Name()),
+		FullName:        string(method.FullName()),
+		InputType:       string(method.Input().FullName()),
+		OutputType:      string(method.Output().FullName()),
+		IsStreaming:     method.IsStreamingClient() || method.IsStreamingServer(),
 		ClientStreaming: method.IsStreamingClient(),
 		ServerStreaming: method.IsStreamingServer(),
 	}, nil

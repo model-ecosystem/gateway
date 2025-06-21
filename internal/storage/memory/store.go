@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 	"time"
-	
+
 	"gateway/internal/storage"
 )
 
@@ -28,18 +28,18 @@ func NewStore(config *storage.LimiterStoreConfig) *Store {
 	if config == nil {
 		config = storage.DefaultConfig()
 	}
-	
+
 	s := &Store{
 		entries: make(map[string]*entry),
 		config:  config,
 		done:    make(chan struct{}),
 	}
-	
+
 	// Start cleanup routine
 	if config.CleanupInterval > 0 {
 		go s.cleanup()
 	}
-	
+
 	return s
 }
 
@@ -52,7 +52,7 @@ func (s *Store) Allow(ctx context.Context, key string, limit, burst int, window 
 func (s *Store) AllowN(ctx context.Context, key string, n, limit, burst int, window time.Duration) (bool, int, time.Time, error) {
 	now := time.Now()
 	resetAt := now.Add(window)
-	
+
 	// Get or create entry
 	s.mu.Lock()
 	e, exists := s.entries[key]
@@ -64,7 +64,7 @@ func (s *Store) AllowN(ctx context.Context, key string, n, limit, burst int, win
 			s.evictOldest()
 			s.mu.Lock()
 		}
-		
+
 		e = &entry{
 			tokens:    burst,
 			lastReset: now,
@@ -72,11 +72,11 @@ func (s *Store) AllowN(ctx context.Context, key string, n, limit, burst int, win
 		s.entries[key] = e
 	}
 	s.mu.Unlock()
-	
+
 	// Update tokens
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	
+
 	// Calculate tokens to add based on time elapsed
 	elapsed := now.Sub(e.lastReset)
 	if elapsed >= window {
@@ -91,13 +91,13 @@ func (s *Store) AllowN(ctx context.Context, key string, n, limit, burst int, win
 			e.lastReset = now
 		}
 	}
-	
+
 	// Check if we have enough tokens
 	if e.tokens >= n {
 		e.tokens -= n
 		return true, e.tokens, resetAt, nil
 	}
-	
+
 	return false, e.tokens, resetAt, nil
 }
 
@@ -113,7 +113,7 @@ func (s *Store) Reset(ctx context.Context, key string) error {
 func (s *Store) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	select {
 	case <-s.done:
 		// Already closed
@@ -128,7 +128,7 @@ func (s *Store) Close() error {
 func (s *Store) cleanup() {
 	ticker := time.NewTicker(s.config.CleanupInterval)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-s.done:
@@ -143,10 +143,10 @@ func (s *Store) cleanup() {
 func (s *Store) removeOldEntries() {
 	now := time.Now()
 	threshold := 24 * time.Hour // Remove entries not used in 24 hours
-	
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	for key, e := range s.entries {
 		e.mu.Lock()
 		if now.Sub(e.lastReset) > threshold {
@@ -160,16 +160,16 @@ func (s *Store) removeOldEntries() {
 func (s *Store) evictOldest() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if len(s.entries) == 0 {
 		return
 	}
-	
+
 	// Find oldest entry
 	var oldestKey string
 	var oldestTime time.Time
 	first := true
-	
+
 	for key, e := range s.entries {
 		e.mu.Lock()
 		if first || e.lastReset.Before(oldestTime) {
@@ -179,7 +179,7 @@ func (s *Store) evictOldest() {
 		}
 		e.mu.Unlock()
 	}
-	
+
 	if oldestKey != "" {
 		delete(s.entries, oldestKey)
 	}

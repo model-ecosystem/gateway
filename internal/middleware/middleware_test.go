@@ -45,7 +45,7 @@ type mockResponse struct {
 	body       io.ReadCloser
 }
 
-func (m *mockResponse) StatusCode() int             { return m.statusCode }
+func (m *mockResponse) StatusCode() int              { return m.statusCode }
 func (m *mockResponse) Headers() map[string][]string { return m.headers }
 func (m *mockResponse) Body() io.ReadCloser          { return m.body }
 

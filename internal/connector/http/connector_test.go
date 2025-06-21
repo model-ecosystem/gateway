@@ -46,7 +46,7 @@ type mockResponse struct {
 	body       io.ReadCloser
 }
 
-func (m *mockResponse) StatusCode() int             { return m.statusCode }
+func (m *mockResponse) StatusCode() int              { return m.statusCode }
 func (m *mockResponse) Headers() map[string][]string { return m.headers }
 func (m *mockResponse) Body() io.ReadCloser          { return m.body }
 
@@ -56,7 +56,7 @@ func TestHTTPConnectorForward(t *testing.T) {
 		// Echo back request details
 		w.Header().Set("X-Test-Header", "test-value")
 		w.Header().Set("Content-Type", "text/plain")
-		
+
 		// Check forwarded headers
 		if xff := r.Header.Get("X-Forwarded-For"); xff == "" {
 			t.Error("X-Forwarded-For header not set")
@@ -64,7 +64,7 @@ func TestHTTPConnectorForward(t *testing.T) {
 		if xfp := r.Header.Get("X-Forwarded-Proto"); xfp == "" {
 			t.Error("X-Forwarded-Proto header not set")
 		}
-		
+
 		// Echo the path
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("Path: " + r.URL.Path))
@@ -73,9 +73,9 @@ func TestHTTPConnectorForward(t *testing.T) {
 
 	// Parse backend URL
 	backendURL, _ := url.Parse(backend.URL)
-	
+
 	// Create connector
-	connector := NewHTTPConnector(&http.Client{}, 10 * time.Second)
+	connector := NewHTTPConnector(&http.Client{}, 10*time.Second)
 
 	tests := []struct {
 		name       string
@@ -157,7 +157,7 @@ func TestHTTPConnectorForward(t *testing.T) {
 				Rule:     &core.RouteRule{},
 			}
 			resp, err := connector.Forward(ctx, tt.request, route)
-			
+
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Forward() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -180,7 +180,7 @@ func TestHTTPConnectorForward(t *testing.T) {
 			// Read response body
 			body, _ := io.ReadAll(resp.Body())
 			resp.Body().Close()
-			
+
 			if !strings.Contains(string(body), "Path:") {
 				t.Errorf("Response body doesn't contain expected path echo")
 			}
@@ -198,9 +198,9 @@ func TestHTTPConnectorTimeout(t *testing.T) {
 
 	// Parse backend URL
 	backendURL, _ := url.Parse(slowBackend.URL)
-	
+
 	// Create connector with short timeout
-	connector := NewHTTPConnector(&http.Client{}, 100 * time.Millisecond)
+	connector := NewHTTPConnector(&http.Client{}, 100*time.Millisecond)
 
 	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
@@ -249,7 +249,7 @@ func TestHTTPConnectorHeaderFiltering(t *testing.T) {
 		if r.Header.Get("Keep-Alive") != "" {
 			t.Error("Keep-Alive header should be removed")
 		}
-		
+
 		// Set response headers including hop-by-hop
 		w.Header().Set("Connection", "close")
 		w.Header().Set("Keep-Alive", "timeout=5")
@@ -259,7 +259,7 @@ func TestHTTPConnectorHeaderFiltering(t *testing.T) {
 	defer backend.Close()
 
 	backendURL, _ := url.Parse(backend.URL)
-	connector := NewHTTPConnector(&http.Client{}, 10 * time.Second)
+	connector := NewHTTPConnector(&http.Client{}, 10*time.Second)
 
 	req := &mockRequest{
 		id:         "header-test",
@@ -305,14 +305,14 @@ func TestHTTPConnectorStreaming(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusOK)
-		
+
 		// Write all data at once
 		w.Write([]byte("chunk 0\nchunk 1\nchunk 2\nchunk 3\nchunk 4\n"))
 	}))
 	defer backend.Close()
 
 	backendURL, _ := url.Parse(backend.URL)
-	connector := NewHTTPConnector(&http.Client{}, 10 * time.Second)
+	connector := NewHTTPConnector(&http.Client{}, 10*time.Second)
 
 	req := &mockRequest{
 		id:         "stream-test",

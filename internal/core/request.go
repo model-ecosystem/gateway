@@ -31,7 +31,7 @@ func NewRequest(id, method, path, url, remoteAddr string, headers map[string][]s
 	}
 }
 
-func (r *request) ID() string                  { return r.id }
+func (r *request) ID() string                   { return r.id }
 func (r *request) Method() string               { return r.method }
 func (r *request) Path() string                 { return r.path }
 func (r *request) URL() string                  { return r.url }

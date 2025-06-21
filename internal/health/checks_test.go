@@ -28,7 +28,7 @@ func TestRegistryCheck(t *testing.T) {
 	// Test with healthy registry
 	registry := &mockRegistry{shouldError: false}
 	check := RegistryCheck(registry)
-	
+
 	err := check(context.Background())
 	if err != nil {
 		t.Errorf("Expected no error for healthy registry, got %v", err)
@@ -100,7 +100,7 @@ func TestCustomCheck(t *testing.T) {
 	successCheck := CustomCheck("test", func() error {
 		return nil
 	})
-	
+
 	err := successCheck(context.Background())
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
@@ -110,7 +110,7 @@ func TestCustomCheck(t *testing.T) {
 	failCheck := CustomCheck("test", func() error {
 		return errors.New("custom error")
 	})
-	
+
 	err = failCheck(context.Background())
 	if err == nil {
 		t.Error("Expected error")
@@ -121,10 +121,10 @@ func TestCustomCheck(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 		return nil
 	})
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
-	
+
 	err = slowCheck(ctx)
 	if err == nil {
 		t.Error("Expected timeout error")
@@ -153,7 +153,7 @@ func TestTCPCheck(t *testing.T) {
 	defer listener.Close()
 
 	addr := listener.Addr().String()
-	
+
 	// Accept connections in background
 	go func() {
 		for {

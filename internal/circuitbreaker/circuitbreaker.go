@@ -64,7 +64,7 @@ func DefaultConfig() Config {
 // CircuitBreaker implements the circuit breaker pattern
 type CircuitBreaker struct {
 	config Config
-	
+
 	mu              sync.RWMutex
 	state           State
 	failures        int
@@ -94,16 +94,16 @@ func New(config Config) *CircuitBreaker {
 	if config.Interval <= 0 {
 		config.Interval = 60 * time.Second
 	}
-	
+
 	cb := &CircuitBreaker{
 		config:          config,
 		state:           StateClosed,
 		lastStateChange: time.Now(),
 	}
-	
+
 	// Start the reset timer
 	go cb.resetTimer()
-	
+
 	return cb
 }
 
@@ -118,19 +118,19 @@ func (cb *CircuitBreaker) State() State {
 func (cb *CircuitBreaker) Allow() bool {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
-	
+
 	// Update state based on timeout
 	cb.updateState()
-	
+
 	switch cb.state {
 	case StateClosed:
 		// Always allow in closed state
 		return true
-		
+
 	case StateOpen:
 		// Block all requests in open state
 		return false
-		
+
 	case StateHalfOpen:
 		// Allow limited requests in half-open state
 		if cb.requests < cb.config.MaxRequests {
@@ -138,7 +138,7 @@ func (cb *CircuitBreaker) Allow() bool {
 			return true
 		}
 		return false
-		
+
 	default:
 		return false
 	}
@@ -148,9 +148,9 @@ func (cb *CircuitBreaker) Allow() bool {
 func (cb *CircuitBreaker) Success() {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
-	
+
 	cb.successes++
-	
+
 	switch cb.state {
 	case StateHalfOpen:
 		cb.halfOpenSuccess++
@@ -165,17 +165,17 @@ func (cb *CircuitBreaker) Success() {
 func (cb *CircuitBreaker) Failure() {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
-	
+
 	cb.failures++
 	cb.lastFailureTime = time.Now()
-	
+
 	switch cb.state {
 	case StateClosed:
 		// Check if we should open the circuit
 		if cb.shouldOpen() {
 			cb.changeState(StateOpen)
 		}
-		
+
 	case StateHalfOpen:
 		// Any failure in half-open state reopens the circuit
 		cb.changeState(StateOpen)
@@ -187,13 +187,13 @@ func (cb *CircuitBreaker) Call(ctx context.Context, fn func(context.Context) err
 	if !cb.Allow() {
 		return ErrCircuitOpen
 	}
-	
+
 	err := fn(ctx)
 	if err != nil {
 		cb.Failure()
 		return err
 	}
-	
+
 	cb.Success()
 	return nil
 }
@@ -202,13 +202,13 @@ func (cb *CircuitBreaker) Call(ctx context.Context, fn func(context.Context) err
 func (cb *CircuitBreaker) Reset() {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
-	
+
 	cb.failures = 0
 	cb.successes = 0
 	cb.requests = 0
 	cb.halfOpenSuccess = 0
 	cb.generation++
-	
+
 	if cb.state != StateClosed {
 		cb.changeState(StateClosed)
 	}
@@ -218,7 +218,7 @@ func (cb *CircuitBreaker) Reset() {
 func (cb *CircuitBreaker) Stats() Stats {
 	cb.mu.RLock()
 	defer cb.mu.RUnlock()
-	
+
 	return Stats{
 		State:           cb.state,
 		Failures:        cb.failures,
@@ -245,12 +245,12 @@ func (cb *CircuitBreaker) shouldOpen() bool {
 	if total == 0 {
 		return false
 	}
-	
+
 	// Check absolute threshold
 	if cb.failures >= cb.config.MaxFailures {
 		return true
 	}
-	
+
 	// Check percentage threshold
 	failureRate := float64(cb.failures) / float64(total)
 	return failureRate >= cb.config.FailureThreshold
@@ -261,11 +261,11 @@ func (cb *CircuitBreaker) changeState(newState State) {
 	if cb.state == newState {
 		return
 	}
-	
+
 	from := cb.state
 	cb.state = newState
 	cb.lastStateChange = time.Now()
-	
+
 	// Reset counters when entering closed or half-open state
 	switch newState {
 	case StateClosed:
@@ -274,12 +274,12 @@ func (cb *CircuitBreaker) changeState(newState State) {
 		cb.requests = 0
 		cb.halfOpenSuccess = 0
 		cb.generation++
-		
+
 	case StateHalfOpen:
 		cb.requests = 0
 		cb.halfOpenSuccess = 0
 	}
-	
+
 	// Call state change callback if configured
 	if cb.config.OnStateChange != nil {
 		// Call in goroutine to avoid blocking
@@ -291,7 +291,7 @@ func (cb *CircuitBreaker) changeState(newState State) {
 func (cb *CircuitBreaker) resetTimer() {
 	ticker := time.NewTicker(cb.config.Interval)
 	defer ticker.Stop()
-	
+
 	for range ticker.C {
 		cb.mu.Lock()
 		if cb.state == StateClosed {

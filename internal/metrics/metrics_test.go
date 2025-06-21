@@ -2,14 +2,14 @@ package metrics
 
 import (
 	"testing"
-	
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 func TestNew(t *testing.T) {
 	m := New()
-	
+
 	// Test that all metrics are created
 	if m.RequestsTotal == nil {
 		t.Error("RequestsTotal is nil")
@@ -77,46 +77,46 @@ func TestMetricsCollection(t *testing.T) {
 	// Create a new registry for testing to avoid conflicts
 	registry := prometheus.NewRegistry()
 	m := NewWithRegistry(registry, registry)
-	
+
 	// Test request counter
 	m.RequestsTotal.WithLabelValues("GET", "/api/test", "200").Inc()
 	m.RequestsTotal.WithLabelValues("POST", "/api/test", "201").Inc()
 	m.RequestsTotal.WithLabelValues("GET", "/api/test", "404").Inc()
-	
+
 	// Verify counts
 	count := testutil.ToFloat64(m.RequestsTotal.WithLabelValues("GET", "/api/test", "200"))
 	if count != 1 {
 		t.Errorf("Expected 1 GET request with 200, got %f", count)
 	}
-	
+
 	count = testutil.ToFloat64(m.RequestsTotal.WithLabelValues("POST", "/api/test", "201"))
 	if count != 1 {
 		t.Errorf("Expected 1 POST request with 201, got %f", count)
 	}
-	
+
 	count = testutil.ToFloat64(m.RequestsTotal.WithLabelValues("GET", "/api/test", "404"))
 	if count != 1 {
 		t.Errorf("Expected 1 GET request with 404, got %f", count)
 	}
-	
+
 	// Test active requests gauge
 	m.ActiveRequests.WithLabelValues("GET", "/api/test").Inc()
 	active := testutil.ToFloat64(m.ActiveRequests.WithLabelValues("GET", "/api/test"))
 	if active != 1 {
 		t.Errorf("Expected 1 active request, got %f", active)
 	}
-	
+
 	m.ActiveRequests.WithLabelValues("GET", "/api/test").Dec()
 	active = testutil.ToFloat64(m.ActiveRequests.WithLabelValues("GET", "/api/test"))
 	if active != 0 {
 		t.Errorf("Expected 0 active requests, got %f", active)
 	}
-	
+
 	// Test histogram
 	m.RequestDuration.WithLabelValues("GET", "/api/test", "200").Observe(0.1)
 	m.RequestDuration.WithLabelValues("GET", "/api/test", "200").Observe(0.2)
 	m.RequestDuration.WithLabelValues("GET", "/api/test", "200").Observe(0.3)
-	
+
 	// Test backend metrics
 	m.BackendRequestsTotal.WithLabelValues("backend-service", "instance-1", "GET", "200").Inc()
 	backendCount := testutil.ToFloat64(m.BackendRequestsTotal.WithLabelValues("backend-service", "instance-1", "GET", "200"))
@@ -147,7 +147,7 @@ func TestNormalizePath(t *testing.T) {
 			expected: "/api/v1/users/12345678901234567890123456789012345",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := NormalizePath(tt.path)

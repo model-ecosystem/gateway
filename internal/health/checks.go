@@ -79,7 +79,7 @@ func CustomCheck(name string, checkFunc func() error) Check {
 	return func(ctx context.Context) error {
 		// Create a channel for the result
 		done := make(chan error, 1)
-		
+
 		// Run the check in a goroutine that respects context cancellation
 		go func() {
 			// Check if context is already cancelled
@@ -89,10 +89,10 @@ func CustomCheck(name string, checkFunc func() error) Check {
 				return
 			default:
 			}
-			
+
 			// Run the check
 			err := checkFunc()
-			
+
 			// Try to send result, but don't block if context was cancelled
 			select {
 			case done <- err:

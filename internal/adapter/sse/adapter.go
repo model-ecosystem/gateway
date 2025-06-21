@@ -91,7 +91,7 @@ func (a *Adapter) HandleSSE(w http.ResponseWriter, r *http.Request) {
 	// Create a cancellable context for the entire SSE connection
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
-	
+
 	// Start keepalive goroutine
 	keepaliveCtx, cancelKeepalive := context.WithCancel(ctx)
 	defer cancelKeepalive()
@@ -111,7 +111,7 @@ func (a *Adapter) HandleSSE(w http.ResponseWriter, r *http.Request) {
 			if connectionID == "" {
 				connectionID = r.RemoteAddr
 			}
-			
+
 			// Start token validation
 			err := a.tokenValidator.ValidateConnection(ctx, connectionID, token, func() {
 				// Token expired, close the connection
@@ -119,18 +119,18 @@ func (a *Adapter) HandleSSE(w http.ResponseWriter, r *http.Request) {
 					"connectionID", connectionID,
 					"remote", r.RemoteAddr,
 				)
-				
+
 				// Send error event and close
 				_ = sseWriter.WriteEvent(&core.SSEEvent{
 					Type: "error",
 					Data: "authentication expired",
 				})
 				_ = sseWriter.Close()
-				
+
 				// Cancel all contexts to stop the handler and keepalive
 				cancel()
 			})
-			
+
 			if err != nil {
 				// Initial validation failed
 				a.logger.Error("JWT validation failed for SSE connection",
@@ -140,7 +140,7 @@ func (a *Adapter) HandleSSE(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
 			}
-			
+
 			// Stop validation when connection closes
 			defer a.tokenValidator.StopValidation(connectionID)
 		}
@@ -158,7 +158,7 @@ func (a *Adapter) HandleSSE(w http.ResponseWriter, r *http.Request) {
 			"path", r.URL.Path,
 			"remote", r.RemoteAddr,
 		)
-		
+
 		// Try to send error event (ignore error if client disconnected)
 		_ = sseWriter.WriteEvent(&core.SSEEvent{
 			Type: "error",
@@ -169,7 +169,7 @@ func (a *Adapter) HandleSSE(w http.ResponseWriter, r *http.Request) {
 
 	// Check if handler successfully processed the SSE request
 	if resp != nil && resp.StatusCode() == http.StatusOK {
-		a.logger.Debug("SSE connection completed", 
+		a.logger.Debug("SSE connection completed",
 			"path", r.URL.Path,
 			"remote", r.RemoteAddr,
 			"disconnected", sseWriter.IsDisconnected(),
