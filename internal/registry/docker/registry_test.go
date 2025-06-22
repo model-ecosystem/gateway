@@ -100,7 +100,7 @@ func TestRegistry_HTTPDiscovery(t *testing.T) {
 		switch r.URL.Path {
 		case "/_ping":
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("OK"))
+			_, _ = w.Write([]byte("OK"))
 
 		case "/containers/json":
 			// Return mock container data
@@ -171,7 +171,9 @@ func TestRegistry_HTTPDiscovery(t *testing.T) {
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(containers)
+			if err := json.NewEncoder(w).Encode(containers); err != nil {
+				t.Logf("Failed to encode containers: %v", err)
+			}
 
 		default:
 			w.WriteHeader(http.StatusNotFound)
@@ -335,7 +337,9 @@ func TestRegistry_ContainerFiltering(t *testing.T) {
 					w.WriteHeader(http.StatusOK)
 				case "/containers/json":
 					w.Header().Set("Content-Type", "application/json")
-					json.NewEncoder(w).Encode([]Container{tc.container})
+					if err := json.NewEncoder(w).Encode([]Container{tc.container}); err != nil {
+						t.Logf("Failed to encode container: %v", err)
+					}
 				default:
 					w.WriteHeader(http.StatusNotFound)
 				}
@@ -406,7 +410,7 @@ func TestRegistry_APIErrors(t *testing.T) {
 				case "/containers/json":
 					w.WriteHeader(tc.listStatus)
 					if tc.listResponse != "" {
-						w.Write([]byte(tc.listResponse))
+						_, _ = w.Write([]byte(tc.listResponse))
 					}
 				default:
 					w.WriteHeader(http.StatusNotFound)
@@ -494,11 +498,15 @@ func TestRegistry_NetworkFiltering(t *testing.T) {
 			if filters != "" && strings.Contains(filters, "\"network\":[\"custom\"]") {
 				// When custom network filter is applied, only return container2
 				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode([]Container{containers[1]})
+				if err := json.NewEncoder(w).Encode([]Container{containers[1]}); err != nil {
+					t.Logf("Failed to encode container: %v", err)
+				}
 			} else {
 				// Return all containers
 				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(containers)
+				if err := json.NewEncoder(w).Encode(containers); err != nil {
+					t.Logf("Failed to encode containers: %v", err)
+				}
 			}
 		default:
 			w.WriteHeader(http.StatusNotFound)
@@ -607,7 +615,9 @@ func TestRegistry_RefreshLoop(t *testing.T) {
 				})
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(containers)
+			if err := json.NewEncoder(w).Encode(containers); err != nil {
+				t.Logf("Failed to encode containers: %v", err)
+			}
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}

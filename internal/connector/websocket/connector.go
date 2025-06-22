@@ -190,7 +190,9 @@ func (c *Connection) WritePing() error {
 	defer c.mu.Unlock()
 	
 	// Set write deadline to prevent blocking forever
-	c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+	if err := c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		return errors.NewError(errors.ErrorTypeInternal, "failed to set write deadline").WithCause(err)
+	}
 	if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 		return errors.NewError(errors.ErrorTypeInternal, "failed to write ping message").WithCause(err)
 	}
@@ -224,9 +226,15 @@ func (c *Connection) Proxy(ctx context.Context, clientConn core.WebSocketConn) e
 	// Setup ping/pong handlers if configured
 	if c.config.PingInterval > 0 && c.config.PongTimeout > 0 {
 		// Set initial read deadline for backend
-		c.conn.SetReadDeadline(time.Now().Add(c.config.PongTimeout))
+		if err := c.conn.SetReadDeadline(time.Now().Add(c.config.PongTimeout)); err != nil {
+			errChan <- errors.NewError(errors.ErrorTypeInternal, "failed to set initial read deadline").WithCause(err)
+			return err
+		}
 		c.conn.SetPongHandler(func(string) error {
-			c.conn.SetReadDeadline(time.Now().Add(c.config.PongTimeout))
+			if err := c.conn.SetReadDeadline(time.Now().Add(c.config.PongTimeout)); err != nil {
+				// Log error but don't fail the pong handler
+				return nil
+			}
 			return nil
 		})
 
@@ -364,7 +372,9 @@ func (c *Connection) Proxy(ctx context.Context, clientConn core.WebSocketConn) e
 
 	// Send close frames to both sides
 	closeMsg := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "proxy ended")
-	c.conn.WriteControl(websocket.CloseMessage, closeMsg, time.Now().Add(time.Second))
+	if err := c.conn.WriteControl(websocket.CloseMessage, closeMsg, time.Now().Add(time.Second)); err != nil {
+		c.logger.Debug("Failed to write close message to backend", "error", err)
+	}
 
 	// Close both connections
 	c.Close()

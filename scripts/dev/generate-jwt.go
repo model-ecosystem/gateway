@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -78,10 +77,4 @@ func main() {
 	fmt.Println()
 	fmt.Println("Use this token with:")
 	fmt.Printf("curl -H \"Authorization: Bearer %s\" http://localhost:8080/api/example/test\n", tokenString)
-}
-
-func generateKeyPair() (*rsa.PrivateKey, error) {
-	// This function generates a new RSA key pair
-	// For testing purposes, we're using a pre-generated key above
-	return nil, nil
 }

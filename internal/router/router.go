@@ -14,7 +14,6 @@ import (
 type Router struct {
 	mux       *http.ServeMux
 	registry  core.ServiceRegistry
-	balancers map[string]core.LoadBalancer
 	routes    map[string]*core.RouteRule // pattern -> rule mapping
 	mu        sync.RWMutex
 }
@@ -24,7 +23,6 @@ func NewRouter(registry core.ServiceRegistry) *Router {
 	return &Router{
 		mux:       http.NewServeMux(),
 		registry:  registry,
-		balancers: make(map[string]core.LoadBalancer),
 		routes:    make(map[string]*core.RouteRule),
 	}
 }
@@ -70,16 +68,14 @@ func (r *Router) AddRule(rule core.RouteRule) error {
 		})
 	}
 
-	// Create load balancer if needed
-	if _, ok := r.balancers[rule.ServiceName]; !ok {
-		switch rule.LoadBalance {
-		case core.LoadBalanceStickySession:
-			// Use sticky session with round-robin fallback
-			fallback := NewRoundRobinBalancer()
-			r.balancers[rule.ServiceName] = NewStickySessionBalancer(fallback, rule.SessionAffinity)
-		default:
-			r.balancers[rule.ServiceName] = NewRoundRobinBalancer()
-		}
+	// Create load balancer for this route
+	switch rule.LoadBalance {
+	case core.LoadBalanceStickySession:
+		// Use sticky session with round-robin fallback
+		fallback := NewRoundRobinBalancer()
+		rule.Balancer = NewStickySessionBalancer(fallback, rule.SessionAffinity)
+	default:
+		rule.Balancer = NewRoundRobinBalancer()
 	}
 
 	return nil
@@ -139,8 +135,12 @@ func (r *Router) Route(ctx context.Context, req core.Request) (*core.RouteResult
 			WithDetail("service", matched.ServiceName)
 	}
 
-	// Select instance
-	balancer := r.balancers[matched.ServiceName]
+	// Select instance using route's balancer
+	balancer := matched.Balancer
+	if balancer == nil {
+		// Defensive check - this should never happen
+		return nil, errors.NewError(errors.ErrorTypeInternal, "no balancer configured for route")
+	}
 
 	// Check if balancer supports request-based selection
 	var instance *core.ServiceInstance
@@ -173,4 +173,21 @@ func matchMethod(methods []string, method string) bool {
 		}
 	}
 	return false
+}
+
+// Close cleans up the router resources
+func (r *Router) Close() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Close all balancers that implement io.Closer
+	for _, rule := range r.routes {
+		if rule.Balancer != nil {
+			if closer, ok := rule.Balancer.(interface{ Close() error }); ok {
+				closer.Close()
+			}
+		}
+	}
+
+	return nil
 }

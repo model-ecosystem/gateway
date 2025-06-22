@@ -457,7 +457,7 @@ func TestAPIKeyProvider_DynamicKeyManagement(t *testing.T) {
 	}
 
 	// Should authenticate again
-	authInfo, err = provider.Authenticate(context.Background(), credentials)
+	_, err = provider.Authenticate(context.Background(), credentials)
 	if err != nil {
 		t.Errorf("Failed to authenticate with re-enabled key: %v", err)
 		return
@@ -627,6 +627,3 @@ func TestAPIKeyProvider_ConcurrentAccess(t *testing.T) {
 }
 
 // Helper function to create a string pointer
-func stringPtr(s string) *string {
-	return &s
-}

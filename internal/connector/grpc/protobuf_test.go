@@ -9,25 +9,6 @@ import (
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
-// Test proto definition for testing
-const testProtoDefinition = `
-syntax = "proto3";
-package test;
-
-message HelloRequest {
-  string name = 1;
-  int32 age = 2;
-}
-
-message HelloResponse {
-  string message = 1;
-  bool success = 2;
-}
-
-service Greeter {
-  rpc SayHello (HelloRequest) returns (HelloResponse);
-}
-`
 
 func createTestDescriptorSet() (*descriptorpb.FileDescriptorSet, error) {
 	// This is a simplified test descriptor
@@ -129,7 +110,7 @@ func TestProtoRegistry_GetMethodInfo(t *testing.T) {
 	// Create and load test descriptor
 	fds, _ := createTestDescriptorSet()
 	data, _ := proto.Marshal(fds)
-	registry.LoadDescriptorSet(data)
+	_ = registry.LoadDescriptorSet(data)
 
 	// Get method info
 	info, err := registry.GetMethodInfo("/test.Greeter/SayHello")

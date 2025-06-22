@@ -229,9 +229,9 @@ func (c *Connector) getConnection(target string) (*grpc.ClientConn, error) {
 	}
 
 	// Create connection
-	conn, err := grpc.Dial(target, opts...)
+	conn, err := grpc.NewClient(target, opts...)
 	if err != nil {
-		return nil, errors.NewError(errors.ErrorTypeUnavailable, "failed to dial gRPC target").WithCause(err).WithDetail("target", target)
+		return nil, errors.NewError(errors.ErrorTypeUnavailable, "failed to create gRPC client").WithCause(err).WithDetail("target", target)
 	}
 
 	c.clients[target] = conn

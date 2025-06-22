@@ -10,23 +10,6 @@ import (
 	"gateway/internal/metrics"
 )
 
-// responseWriter wraps http.ResponseWriter to capture status code and size
-type responseWriter struct {
-	http.ResponseWriter
-	statusCode int
-	size       int
-}
-
-func (rw *responseWriter) WriteHeader(code int) {
-	rw.statusCode = code
-	rw.ResponseWriter.WriteHeader(code)
-}
-
-func (rw *responseWriter) Write(b []byte) (int, error) {
-	size, err := rw.ResponseWriter.Write(b)
-	rw.size += size
-	return size, err
-}
 
 // Middleware creates metrics collection middleware
 func Middleware(m *metrics.Metrics) core.Middleware {
@@ -76,11 +59,8 @@ func Middleware(m *metrics.Metrics) core.Middleware {
 			m.RequestsTotal.WithLabelValues(method, path, statusStr).Inc()
 			m.RequestDuration.WithLabelValues(method, path, statusStr).Observe(duration)
 
-			// Track response size if available
-			if resp != nil && resp.Body() != nil {
-				// We can't easily measure response size without buffering the entire response
-				// This would need to be done at the HTTP adapter level
-			}
+			// Response size tracking would need to be done at the HTTP adapter level
+			// to avoid buffering the entire response
 
 			return resp, err
 		}

@@ -72,7 +72,7 @@ func NewRegistry(config *Config, logger *slog.Logger) (*Registry, error) {
 	}
 
 	// Determine Docker API URL
-	baseURL := "http://localhost"
+	var baseURL string
 	if config.Host != "" {
 		baseURL = config.Host
 	} else {

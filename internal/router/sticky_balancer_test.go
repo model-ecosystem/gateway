@@ -355,7 +355,7 @@ func TestStickySessionLRUEviction(t *testing.T) {
 				"Cookie": {"SESSION=session-1"},
 			},
 		}
-		balancer.SelectForRequest(req1, instances)
+		_, _ = balancer.SelectForRequest(req1, instances)
 		time.Sleep(10 * time.Millisecond)
 	}
 
@@ -367,7 +367,7 @@ func TestStickySessionLRUEviction(t *testing.T) {
 				"Cookie": {fmt.Sprintf("SESSION=%s", sessionID)},
 			},
 		}
-		balancer.SelectForRequest(req, instances)
+		_, _ = balancer.SelectForRequest(req, instances)
 		time.Sleep(10 * time.Millisecond)
 	}
 

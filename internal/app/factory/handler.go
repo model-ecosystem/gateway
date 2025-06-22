@@ -19,11 +19,6 @@ import (
 	"gateway/pkg/errors"
 )
 
-// ConnectorSelector holds connectors for different protocols
-type ConnectorSelector struct {
-	httpConnector connector.Connector
-	grpcConnector *grpcConnector.Connector
-}
 
 // CreateBaseHandler creates the base request handler
 func CreateBaseHandler(router core.Router, conn connector.Connector) core.Handler {
@@ -42,10 +37,17 @@ func CreateBaseHandler(router core.Router, conn connector.Connector) core.Handle
 // CreateMultiProtocolHandler creates a handler that supports multiple protocols
 func CreateMultiProtocolHandler(router core.Router, httpConn connector.Connector, grpcConn *grpcConnector.Connector) core.Handler {
 	return func(ctx context.Context, req core.Request) (core.Response, error) {
-		// Route request
-		route, err := router.Route(ctx, req)
-		if err != nil {
-			return nil, err
+		// Get route from context (set by route-aware middleware)
+		var route *core.RouteResult
+		if r := getRouteFromContext(ctx); r != nil {
+			route = r
+		} else {
+			// Fallback: route if not in context
+			var err error
+			route, err = router.Route(ctx, req)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		// Select connector based on protocol
@@ -62,6 +64,17 @@ func CreateMultiProtocolHandler(router core.Router, httpConn connector.Connector
 			return nil, errors.NewError(errors.ErrorTypeBadRequest, "unsupported protocol: "+route.Rule.Protocol)
 		}
 	}
+}
+
+// routeContextKey is the key for storing route info in context
+type routeContextKey struct{}
+
+// getRouteFromContext retrieves the route from context
+func getRouteFromContext(ctx context.Context) *core.RouteResult {
+	if route, ok := ctx.Value(routeContextKey{}).(*core.RouteResult); ok {
+		return route
+	}
+	return nil
 }
 
 // CreateSSEHandler creates an SSE-specific handler
@@ -94,12 +107,71 @@ func ApplyMiddleware(handler core.Handler, logger *slog.Logger, authMiddleware *
 		middleware.Logging(logger),
 	}
 
-	// Add auth middleware if configured
+	// Add route-aware auth middleware if configured
 	if authMiddleware != nil {
-		middlewares = append([]core.Middleware{authMiddleware.Handler}, middlewares...)
+		// Create route-aware auth that checks per-route requirements
+		routeAuthMiddleware := createRouteAwareAuthMiddleware(authMiddleware, logger)
+		middlewares = append([]core.Middleware{routeAuthMiddleware}, middlewares...)
 	}
 
 	return middleware.Chain(middlewares...)(handler)
+}
+
+// createRouteAwareAuthMiddleware creates middleware that checks per-route auth requirements
+func createRouteAwareAuthMiddleware(authMiddleware *auth.Middleware, logger *slog.Logger) core.Middleware {
+	authHandler := authMiddleware.Handler
+	
+	return func(next core.Handler) core.Handler {
+		return func(ctx context.Context, req core.Request) (core.Response, error) {
+			// Get route from context
+			route := getRouteFromContext(ctx)
+			if route == nil {
+				// No route info, apply auth globally
+				return authHandler(next)(ctx, req)
+			}
+
+			// Check if route requires authentication
+			authRequired := false
+			if metadata := route.Rule.Metadata; metadata != nil {
+				if val, ok := metadata["authRequired"].(bool); ok {
+					authRequired = val
+				}
+			}
+
+			if !authRequired {
+				// Route doesn't require auth
+				logger.Debug("Route does not require authentication",
+					"route", route.Rule.ID,
+					"path", req.Path(),
+				)
+				return next(ctx, req)
+			}
+
+			// Route requires auth, apply authentication
+			logger.Debug("Route requires authentication", 
+				"route", route.Rule.ID,
+				"path", req.Path(),
+			)
+			return authHandler(next)(ctx, req)
+		}
+	}
+}
+
+// CreateRouteAwareHandler wraps a handler to add route information to context
+func CreateRouteAwareHandler(router core.Router, handler core.Handler) core.Handler {
+	return func(ctx context.Context, req core.Request) (core.Response, error) {
+		// Route request first
+		route, err := router.Route(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+
+		// Store route in context
+		ctx = context.WithValue(ctx, routeContextKey{}, route)
+
+		// Call the handler
+		return handler(ctx, req)
+	}
 }
 
 // CreateRouter creates and configures a router

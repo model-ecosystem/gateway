@@ -154,7 +154,7 @@ func TestConnector_Connect(t *testing.T) {
 				serverURL := strings.TrimPrefix(server.URL, "http://")
 				_, portStr, _ := net.SplitHostPort(serverURL)
 				port := 0
-				fmt.Sscanf(portStr, "%d", &port)
+				_, _ = fmt.Sscanf(portStr, "%d", &port)
 
 				if tt.instance.Port == 0 {
 					tt.instance.Port = port
@@ -243,7 +243,7 @@ func TestConnection_ReadWriteMessage(t *testing.T) {
 			serverURL := strings.TrimPrefix(server.URL, "http://")
 			host, portStr, _ := net.SplitHostPort(serverURL)
 			port := 0
-			fmt.Sscanf(portStr, "%d", &port)
+			_, _ = fmt.Sscanf(portStr, "%d", &port)
 
 			instance := &core.ServiceInstance{
 				ID:      "test",
@@ -313,7 +313,7 @@ func TestConnection_Proxy(t *testing.T) {
 	serverURL := strings.TrimPrefix(backendServer.URL, "http://")
 	host, portStr, _ := net.SplitHostPort(serverURL)
 	port := 0
-	fmt.Sscanf(portStr, "%d", &port)
+	_, _ = fmt.Sscanf(portStr, "%d", &port)
 
 	instance := &core.ServiceInstance{
 		ID:      "backend",
@@ -372,7 +372,7 @@ func TestConnection_Proxy(t *testing.T) {
 		}
 
 		// Read response with timeout
-		conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+		_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 		_, response, err := conn.ReadMessage()
 		if err != nil {
 			// Check if it's a "use of closed network connection" error
@@ -395,7 +395,7 @@ func TestConnection_Proxy(t *testing.T) {
 
 		// Send close message
 		closeMsg := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "test complete")
-		conn.WriteControl(websocket.CloseMessage, closeMsg, time.Now().Add(time.Second))
+		_ = conn.WriteControl(websocket.CloseMessage, closeMsg, time.Now().Add(time.Second))
 
 		// Cancel proxy
 		cancel()
@@ -444,7 +444,7 @@ func TestConnection_Deadlines(t *testing.T) {
 	serverURL := strings.TrimPrefix(server.URL, "http://")
 	host, portStr, _ := net.SplitHostPort(serverURL)
 	port := 0
-	fmt.Sscanf(portStr, "%d", &port)
+	_, _ = fmt.Sscanf(portStr, "%d", &port)
 
 	instance := &core.ServiceInstance{
 		ID:      "test",
@@ -509,7 +509,7 @@ func TestConnection_Handlers(t *testing.T) {
 	serverURL := strings.TrimPrefix(server.URL, "http://")
 	host, portStr, _ := net.SplitHostPort(serverURL)
 	port := 0
-	fmt.Sscanf(portStr, "%d", &port)
+	_, _ = fmt.Sscanf(portStr, "%d", &port)
 
 	instance := &core.ServiceInstance{
 		ID:      "test",
@@ -537,8 +537,8 @@ func TestConnection_Handlers(t *testing.T) {
 	})
 
 	// Read to trigger handlers
-	conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
-	conn.ReadMessage()
+	_ = conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+	_, _ = conn.ReadMessage()
 
 	// Give time for handlers
 	time.Sleep(50 * time.Millisecond)
@@ -601,7 +601,7 @@ func TestConnection_Concurrent(t *testing.T) {
 	serverURL := strings.TrimPrefix(server.URL, "http://")
 	host, portStr, _ := net.SplitHostPort(serverURL)
 	port := 0
-	fmt.Sscanf(portStr, "%d", &port)
+	_, _ = fmt.Sscanf(portStr, "%d", &port)
 
 	instance := &core.ServiceInstance{
 		ID:      "test",

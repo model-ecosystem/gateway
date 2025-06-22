@@ -39,16 +39,6 @@ func (m *mockRequest) Context() context.Context {
 	return context.Background()
 }
 
-// mockResponse implements core.Response
-type mockResponse struct {
-	statusCode int
-	headers    map[string][]string
-	body       io.ReadCloser
-}
-
-func (m *mockResponse) StatusCode() int              { return m.statusCode }
-func (m *mockResponse) Headers() map[string][]string { return m.headers }
-func (m *mockResponse) Body() io.ReadCloser          { return m.body }
 
 func TestHTTPConnectorForward(t *testing.T) {
 	// Create a test backend server
@@ -67,7 +57,7 @@ func TestHTTPConnectorForward(t *testing.T) {
 
 		// Echo the path
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Path: " + r.URL.Path))
+		_, _ = w.Write([]byte("Path: " + r.URL.Path))
 	}))
 	defer backend.Close()
 
@@ -307,7 +297,7 @@ func TestHTTPConnectorStreaming(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 
 		// Write all data at once
-		w.Write([]byte("chunk 0\nchunk 1\nchunk 2\nchunk 3\nchunk 4\n"))
+		_, _ = w.Write([]byte("chunk 0\nchunk 1\nchunk 2\nchunk 3\nchunk 4\n"))
 	}))
 	defer backend.Close()
 

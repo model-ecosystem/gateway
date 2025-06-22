@@ -78,7 +78,7 @@ func TestErrorWithDetails(t *testing.T) {
 	}
 
 	// Test chaining
-	err.WithDetail("version", "v1").WithDetail("region", "us-east-1")
+	_ = err.WithDetail("version", "v1").WithDetail("region", "us-east-1")
 
 	if len(err.Details) != 4 {
 		t.Errorf("Expected 4 details, got %d", len(err.Details))

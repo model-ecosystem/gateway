@@ -304,9 +304,13 @@ func (a *Adapter) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn.SetReadLimit(a.config.MaxMessageSize)
 
 	// Setup ping/pong handlers for connection health
-	conn.SetReadDeadline(time.Now().Add(a.config.PongWait))
+	if err := conn.SetReadDeadline(time.Now().Add(a.config.PongWait)); err != nil {
+		a.logger.Error("Failed to set read deadline", "error", err)
+	}
 	conn.SetPongHandler(func(string) error {
-		conn.SetReadDeadline(time.Now().Add(a.config.PongWait))
+		if err := conn.SetReadDeadline(time.Now().Add(a.config.PongWait)); err != nil {
+			a.logger.Error("Failed to set read deadline in pong handler", "error", err)
+		}
 		return nil
 	})
 
@@ -319,7 +323,9 @@ func (a *Adapter) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			"remote", r.RemoteAddr,
 		)
 		message := websocket.FormatCloseMessage(code, text)
-		conn.WriteControl(websocket.CloseMessage, message, time.Now().Add(time.Second))
+		if err := conn.WriteControl(websocket.CloseMessage, message, time.Now().Add(time.Second)); err != nil {
+			a.logger.Debug("Failed to write close message", "error", err)
+		}
 		return nil
 	})
 
@@ -349,7 +355,9 @@ func (a *Adapter) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					return
 				case <-ticker.C:
 					// Set write deadline to prevent blocking forever
-					conn.SetWriteDeadline(time.Now().Add(a.config.WriteDeadline))
+					if err := conn.SetWriteDeadline(time.Now().Add(a.config.WriteDeadline)); err != nil {
+						a.logger.Debug("Failed to set write deadline", "error", err)
+					}
 					if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 						a.logger.Debug("Failed to send ping to client", 
 							"remote", r.RemoteAddr,
@@ -381,7 +389,9 @@ func (a *Adapter) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 				// Send close message
 				closeMsg := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "authentication expired")
-				conn.WriteControl(websocket.CloseMessage, closeMsg, time.Now().Add(time.Second))
+				if err := conn.WriteControl(websocket.CloseMessage, closeMsg, time.Now().Add(time.Second)); err != nil {
+					a.logger.Debug("Failed to write close message on token expiration", "error", err)
+				}
 				conn.Close()
 			})
 
@@ -393,7 +403,9 @@ func (a *Adapter) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				)
 				// Send close message
 				closeMsg := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "unauthorized")
-				conn.WriteControl(websocket.CloseMessage, closeMsg, time.Now().Add(time.Second))
+				if err := conn.WriteControl(websocket.CloseMessage, closeMsg, time.Now().Add(time.Second)); err != nil {
+					a.logger.Debug("Failed to write close message on auth failure", "error", err)
+				}
 				conn.Close()
 				return
 			}
@@ -411,7 +423,9 @@ func (a *Adapter) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		)
 		// Send generic close message to client
 		closeMsg := websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "Internal Server Error")
-		conn.WriteControl(websocket.CloseMessage, closeMsg, time.Now().Add(time.Second))
+		if err := conn.WriteControl(websocket.CloseMessage, closeMsg, time.Now().Add(time.Second)); err != nil {
+			a.logger.Debug("Failed to write close message on no token", "error", err)
+		}
 		conn.Close()
 		return
 	}

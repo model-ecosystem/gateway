@@ -16,13 +16,6 @@ type reader struct {
 	closed bool
 }
 
-// newReader creates a new SSE reader
-func newReader(r io.Reader) *reader {
-	return &reader{
-		r: bufio.NewReader(r),
-	}
-}
-
 // ReadEvent reads the next SSE event
 func (r *reader) ReadEvent() (*core.SSEEvent, error) {
 	if r.closed {
@@ -91,10 +84,4 @@ func (r *reader) ReadEvent() (*core.SSEEvent, error) {
 			// Unknown field, ignore
 		}
 	}
-}
-
-// Close closes the reader
-func (r *reader) Close() error {
-	r.closed = true
-	return nil
 }

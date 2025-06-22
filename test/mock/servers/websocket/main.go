@@ -34,11 +34,11 @@ func echoHandler(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close()
 
 	// Set read deadline
-	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 
 	// Handle ping/pong
 	conn.SetPingHandler(func(data string) error {
-		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		_ = conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		return conn.WriteControl(websocket.PongMessage, []byte(data), time.Now().Add(time.Second))
 	})
 
@@ -60,7 +60,7 @@ func echoHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Reset read deadline
-		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		_ = conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 	}
 
 	log.Printf("Connection closed from %s", r.RemoteAddr)
@@ -69,7 +69,7 @@ func echoHandler(w http.ResponseWriter, r *http.Request) {
 // healthHandler returns health status
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
+	_, _ = w.Write([]byte("OK"))
 }
 
 func main() {

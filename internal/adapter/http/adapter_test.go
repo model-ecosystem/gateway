@@ -264,7 +264,7 @@ func TestAdapterStreamingResponse(t *testing.T) {
 		go func() {
 			defer pw.Close()
 			for i := 0; i < 3; i++ {
-				pw.Write([]byte("chunk\n"))
+				_, _ = pw.Write([]byte("chunk\n"))
 				time.Sleep(5 * time.Millisecond)
 			}
 		}()

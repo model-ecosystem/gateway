@@ -276,7 +276,9 @@ func TestAdapter_handleWebSocket(t *testing.T) {
 			}
 			defer listener.Close()
 
-			go server.Serve(listener)
+			go func() {
+				_ = server.Serve(listener)
+			}()
 			defer server.Close()
 
 			// Create WebSocket client or regular HTTP client
@@ -363,7 +365,9 @@ func TestWebSocketContextLifecycle(t *testing.T) {
 	}
 	defer listener.Close()
 
-	go server.Serve(listener)
+	go func() {
+		_ = server.Serve(listener)
+	}()
 	defer server.Close()
 
 	// Connect WebSocket client
@@ -620,7 +624,7 @@ func TestAdapter_Concurrent(t *testing.T) {
 			atomic.AddInt32(&successCount, 1)
 			
 			// Send close message
-			conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+			_ = conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 		}(i)
 	}
 

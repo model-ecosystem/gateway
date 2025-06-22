@@ -192,7 +192,6 @@ func (c *Connection) Proxy(ctx context.Context, clientWriter core.SSEWriter) err
 						"events", eventCount,
 						"error", netErr,
 						"timeout", netErr.Timeout(),
-						"temporary", netErr.Temporary(),
 					)
 				}
 

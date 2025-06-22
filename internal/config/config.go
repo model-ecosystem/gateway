@@ -358,6 +358,22 @@ func (r *RouteRule) ToRouteRule() core.RouteRule {
 		rule.Metadata["grpc"] = r.GRPC
 	}
 
+	// Add authentication configuration
+	rule.Metadata["authRequired"] = r.AuthRequired
+	if r.AuthType != "" {
+		rule.Metadata["authType"] = r.AuthType
+	}
+
+	// Add rate limiting configuration
+	if r.RateLimit > 0 {
+		rule.Metadata["rateLimit"] = r.RateLimit
+		rule.Metadata["rateLimitBurst"] = r.RateLimitBurst
+		rule.Metadata["rateLimitExpiration"] = r.RateLimitExpiration
+		if r.RateLimitStorage != "" {
+			rule.Metadata["rateLimitStorage"] = r.RateLimitStorage
+		}
+	}
+
 	return rule
 }
 

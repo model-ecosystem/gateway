@@ -200,7 +200,7 @@ func TestConnector_Connect(t *testing.T) {
 				}
 				_, portStr, _ := net.SplitHostPort(serverURL)
 				var port int
-				fmt.Sscanf(portStr, "%d", &port)
+				_, _ = fmt.Sscanf(portStr, "%d", &port)
 
 				if tt.instance.Port == 0 {
 					tt.instance.Port = port
@@ -307,7 +307,7 @@ func TestConnection_ReadEvent(t *testing.T) {
 			serverURL := strings.TrimPrefix(server.URL, "http://")
 			_, portStr, _ := net.SplitHostPort(serverURL)
 			var port int
-			fmt.Sscanf(portStr, "%d", &port)
+			_, _ = fmt.Sscanf(portStr, "%d", &port)
 
 			instance := &core.ServiceInstance{
 				ID:      "test",
@@ -367,7 +367,7 @@ func TestConnection_Proxy(t *testing.T) {
 	serverURL := strings.TrimPrefix(server.URL, "http://")
 	_, portStr, _ := net.SplitHostPort(serverURL)
 	var port int
-	fmt.Sscanf(portStr, "%d", &port)
+	_, _ = fmt.Sscanf(portStr, "%d", &port)
 
 	instance := &core.ServiceInstance{
 		ID:      "backend",
@@ -446,7 +446,7 @@ func TestConnection_ContextCancellation(t *testing.T) {
 	serverURL := strings.TrimPrefix(server.URL, "http://")
 	_, portStr, _ := net.SplitHostPort(serverURL)
 	var port int
-	fmt.Sscanf(portStr, "%d", &port)
+	_, _ = fmt.Sscanf(portStr, "%d", &port)
 
 	instance := &core.ServiceInstance{
 		ID:      "test",

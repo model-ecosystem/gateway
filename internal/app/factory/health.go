@@ -145,12 +145,11 @@ func grpcCheck(addr string, service string, timeout time.Duration) health.Check 
 		defer cancel()
 
 		// Connect to gRPC server
-		conn, err := grpc.DialContext(checkCtx, addr,
+		conn, err := grpc.NewClient(addr,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithBlock(),
 		)
 		if err != nil {
-			return fmt.Errorf("grpc dial failed: %w", err)
+			return fmt.Errorf("grpc client creation failed: %w", err)
 		}
 		defer conn.Close()
 

@@ -61,7 +61,7 @@ func (e *Extractor) extractFromAuthHeader(header string) string {
 		return ""
 	}
 
-	if strings.ToLower(parts[0]) != strings.ToLower(e.Scheme) {
+	if !strings.EqualFold(parts[0], e.Scheme) {
 		return ""
 	}
 

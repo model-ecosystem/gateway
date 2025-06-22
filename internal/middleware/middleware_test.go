@@ -334,14 +334,14 @@ func TestLoggingMiddlewarePerformance(t *testing.T) {
 	// Warm up
 	ctx := context.Background()
 	for i := 0; i < 100; i++ {
-		wrapped(ctx, req)
+		_, _ = wrapped(ctx, req)
 	}
 
 	// Measure overhead
 	start := time.Now()
 	iterations := 10000
 	for i := 0; i < iterations; i++ {
-		wrapped(ctx, req)
+		_, _ = wrapped(ctx, req)
 	}
 	duration := time.Since(start)
 

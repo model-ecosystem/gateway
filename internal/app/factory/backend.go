@@ -155,7 +155,7 @@ func createBackendTLSConfig(cfg *config.BackendTLS) (*tls.Config, error) {
 		tlsConfig.InsecureSkipVerify = cfg.InsecureSkipVerify
 	}
 
-	// Set minimum version
+	// Set minimum version - default to TLS 1.2 for security
 	if cfg.MinVersion != "" {
 		switch cfg.MinVersion {
 		case "1.0":
@@ -169,6 +169,8 @@ func createBackendTLSConfig(cfg *config.BackendTLS) (*tls.Config, error) {
 		default:
 			tlsConfig.MinVersion = tls.VersionTLS12
 		}
+	} else {
+		tlsConfig.MinVersion = tls.VersionTLS12
 	}
 
 	// Set maximum version
@@ -186,7 +188,7 @@ func createBackendTLSConfig(cfg *config.BackendTLS) (*tls.Config, error) {
 	}
 
 	// Set basic security settings
-	tlsConfig.PreferServerCipherSuites = cfg.PreferServerCipher
+	// PreferServerCipherSuites is deprecated since Go 1.18 and ignored
 	tlsConfig.Renegotiation = tls.RenegotiateNever
 	if cfg.Renegotiation {
 		tlsConfig.Renegotiation = tls.RenegotiateFreelyAsClient

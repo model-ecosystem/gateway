@@ -283,7 +283,7 @@ func TestGRPCCheck(t *testing.T) {
 	healthpb.RegisterHealthServer(grpcServer, healthServer)
 
 	go func() {
-		grpcServer.Serve(listener)
+		_ = grpcServer.Serve(listener)
 	}()
 	defer grpcServer.Stop()
 

@@ -30,11 +30,11 @@ func (m *mockHandler) Handle(ctx context.Context, req core.Request) (core.Respon
 	// Write some SSE events if this is an SSE request
 	if sseReq, ok := req.(*sseRequest); ok {
 		// Write test events
-		sseReq.writer.WriteEvent(&core.SSEEvent{
+		_ = sseReq.writer.WriteEvent(&core.SSEEvent{
 			Type: "test",
 			Data: "hello",
 		})
-		sseReq.writer.WriteEvent(&core.SSEEvent{
+		_ = sseReq.writer.WriteEvent(&core.SSEEvent{
 			ID:   "123",
 			Type: "message",
 			Data: "world",
@@ -140,7 +140,7 @@ func TestAdapter_HandleSSE(t *testing.T) {
 
 				// Write SSE event
 				if sseReq, ok := req.(*sseRequest); ok {
-					sseReq.writer.WriteEvent(&core.SSEEvent{
+					_ = sseReq.writer.WriteEvent(&core.SSEEvent{
 						Type: "test",
 						Data: "hello world",
 					})
@@ -433,7 +433,7 @@ func TestAdapter_Concurrent(t *testing.T) {
 		mu.Unlock()
 
 		if sseReq, ok := req.(*sseRequest); ok {
-			sseReq.writer.WriteEvent(&core.SSEEvent{
+			_ = sseReq.writer.WriteEvent(&core.SSEEvent{
 				Type: "connection",
 				Data: fmt.Sprintf("conn-%d", current),
 			})

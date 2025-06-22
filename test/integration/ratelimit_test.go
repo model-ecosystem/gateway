@@ -23,7 +23,7 @@ func TestRateLimitingIntegration(t *testing.T) {
 		// Log the request to help debug
 		t.Logf("Backend received request: %s %s", r.Method, r.URL.Path)
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK"))
 	}))
 	defer backend.Close()
 	
@@ -125,7 +125,9 @@ func TestRateLimitingIntegration(t *testing.T) {
 	if err := server.Start(ctx); err != nil {
 		t.Fatalf("Failed to start gateway: %v", err)
 	}
-	defer server.Stop(context.Background())
+	defer func() {
+		_ = server.Stop(context.Background())
+	}()
 
 	// Wait for server to be ready
 	time.Sleep(500 * time.Millisecond)

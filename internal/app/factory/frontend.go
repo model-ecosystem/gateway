@@ -52,9 +52,9 @@ func CreateSSEAdapter(
 	authConfig *config.Auth,
 	logger *slog.Logger,
 	metrics *metrics.Metrics,
-) {
+) error {
 	if cfg == nil || !cfg.Enabled {
-		return
+		return nil
 	}
 
 	sseConfig := &sseAdapter.Config{
@@ -83,16 +83,17 @@ func CreateSSEAdapter(
 	if authConfig != nil && authConfig.JWT != nil && authConfig.JWT.Enabled {
 		jwtProvider, err := createJWTProvider(authConfig.JWT, logger)
 		if err != nil {
-			logger.Error("Failed to create JWT provider for SSE", "error", err)
-		} else {
-			// Create token validator
-			tokenValidator := jwt.NewTokenValidator(jwtProvider, logger)
-			sse.WithTokenValidator(tokenValidator)
-			logger.Info("JWT token validation enabled for SSE connections")
+			// Fail closed - return error to prevent insecure startup
+			return errors.NewError(errors.ErrorTypeInternal, "failed to create JWT provider for SSE").WithCause(err)
 		}
+		// Create token validator
+		tokenValidator := jwt.NewTokenValidator(jwtProvider, logger)
+		sse.WithTokenValidator(tokenValidator)
+		logger.Info("JWT token validation enabled for SSE connections")
 	}
 
 	httpAdapterInstance.WithSSEHandler(sse)
+	return nil
 }
 
 // CreateWebSocketAdapter creates a WebSocket frontend adapter
@@ -102,9 +103,9 @@ func CreateWebSocketAdapter(
 	authConfig *config.Auth,
 	logger *slog.Logger,
 	metrics *metrics.Metrics,
-) *wsAdapter.Adapter {
+) (*wsAdapter.Adapter, error) {
 	if cfg == nil {
-		return nil
+		return nil, nil
 	}
 
 	wsConfig := &wsAdapter.Config{
@@ -146,16 +147,16 @@ func CreateWebSocketAdapter(
 	if authConfig != nil && authConfig.JWT != nil && authConfig.JWT.Enabled {
 		jwtProvider, err := createJWTProvider(authConfig.JWT, logger)
 		if err != nil {
-			logger.Error("Failed to create JWT provider for WebSocket", "error", err)
-		} else {
-			// Create token validator
-			tokenValidator := jwt.NewTokenValidator(jwtProvider, logger)
-			adapter.WithTokenValidator(tokenValidator)
-			logger.Info("JWT token validation enabled for WebSocket connections")
+			// Fail closed - return error to prevent insecure startup
+			return nil, errors.NewError(errors.ErrorTypeInternal, "failed to create JWT provider for WebSocket").WithCause(err)
 		}
+		// Create token validator
+		tokenValidator := jwt.NewTokenValidator(jwtProvider, logger)
+		adapter.WithTokenValidator(tokenValidator)
+		logger.Info("JWT token validation enabled for WebSocket connections")
 	}
 
-	return adapter
+	return adapter, nil
 }
 
 // createTLSConfig creates a tls.Config from configuration
@@ -171,9 +172,11 @@ func createTLSConfig(cfg *config.TLS) (*tls.Config, error) {
 		tlsConfig.Certificates = []tls.Certificate{cert}
 	}
 
-	// Set minimum version
+	// Set minimum version - default to TLS 1.2 for security
 	if cfg.MinVersion != "" {
 		tlsConfig.MinVersion = tlsutil.ParseTLSVersion(cfg.MinVersion)
+	} else {
+		tlsConfig.MinVersion = tls.VersionTLS12
 	}
 
 	// Set maximum version
@@ -181,8 +184,7 @@ func createTLSConfig(cfg *config.TLS) (*tls.Config, error) {
 		tlsConfig.MaxVersion = tlsutil.ParseTLSVersion(cfg.MaxVersion)
 	}
 
-	// Set prefer server cipher suites
-	tlsConfig.PreferServerCipherSuites = cfg.PreferServerCipher
+	// PreferServerCipherSuites is deprecated since Go 1.18 and ignored
 
 	return tlsConfig, nil
 }

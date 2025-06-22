@@ -80,6 +80,7 @@ type RouteRule struct {
 	SessionAffinity *SessionAffinityConfig
 	Protocol        string                 // Protocol hint: http, grpc, websocket, sse
 	Metadata        map[string]interface{} // Additional protocol-specific configuration
+	Balancer        LoadBalancer           // Route-specific load balancer instance
 }
 
 // LoadBalanceStrategy defines load balancing algorithm

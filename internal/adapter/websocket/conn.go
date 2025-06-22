@@ -29,14 +29,6 @@ func newConn(ws *websocket.Conn, remoteAddr string) *conn {
 	}
 }
 
-// newConnWithContext creates a new WebSocket connection wrapper with context
-func newConnWithContext(ws *websocket.Conn, remoteAddr string, ctx context.Context) *conn {
-	return &conn{
-		ws:     ws,
-		remote: remoteAddr,
-		ctx:    ctx,
-	}
-}
 
 // newConnWithMetrics creates a new WebSocket connection wrapper with metrics
 func newConnWithMetrics(ws *websocket.Conn, remoteAddr string, ctx context.Context, metrics *WebSocketMetrics) *conn {
@@ -149,7 +141,9 @@ func (c *conn) WritePing() error {
 	c.mu.RUnlock()
 
 	// Set write deadline to prevent blocking forever
-	c.ws.SetWriteDeadline(time.Now().Add(10 * time.Second))
+	if err := c.ws.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		return err
+	}
 	err := c.ws.WriteMessage(websocket.PingMessage, nil)
 	if err != nil {
 		c.handleError(err)

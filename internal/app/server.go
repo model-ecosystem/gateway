@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"sync"
 	"time"
 
@@ -14,10 +15,13 @@ import (
 
 // Server represents the gateway server
 type Server struct {
-	config      *config.Config
-	httpAdapter *httpAdapter.Adapter
-	wsAdapter   *wsAdapter.Adapter
-	logger      *slog.Logger
+	config        *config.Config
+	httpAdapter   *httpAdapter.Adapter
+	wsAdapter     *wsAdapter.Adapter
+	metricsServer *http.Server
+	router        interface{ Close() error } // Router with Close method
+	registry      interface{ Close() error } // Registry with Close method
+	logger        *slog.Logger
 }
 
 // NewServer creates a new gateway server
@@ -97,8 +101,32 @@ func (s *Server) Start(ctx context.Context) error {
 		}()
 	}
 
+	// Start metrics server if enabled on separate port
+	if s.metricsServer != nil {
+		expectedStarts++
+		go func() {
+			s.logger.Info("Starting metrics server",
+				"address", s.metricsServer.Addr,
+			)
+			// Signal that we're starting (since ListenAndServe blocks)
+			startedCh <- struct{}{}
+			// ListenAndServe blocks until shutdown
+			if err := s.metricsServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				// Only report real errors, not expected server closed
+				select {
+				case errCh <- fmt.Errorf("metrics server: %w", err):
+				case <-startupCtx.Done():
+					// Context canceled, don't send error
+				}
+			}
+		}()
+	}
+
 	// Wait for all adapters to start or fail
 	started := 0
+	startupTimeout := time.NewTimer(5 * time.Second)
+	defer startupTimeout.Stop()
+
 	for started < expectedStarts {
 		select {
 		case err := <-errCh:
@@ -109,19 +137,23 @@ func (s *Server) Start(ctx context.Context) error {
 			// Stop any adapters that may have started successfully
 			stopCtx, stopCancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer stopCancel()
-			s.Stop(stopCtx)
+			if stopErr := s.Stop(stopCtx); stopErr != nil {
+				s.logger.Error("Failed to stop server after startup error", "error", stopErr)
+			}
 
 			return err
 		case <-startedCh:
 			started++
-		case <-time.After(5 * time.Second):
+		case <-startupTimeout.C:
 			// Timeout waiting for adapters to start
 			cancelStartup()
 
 			// Stop any adapters that may have started
 			stopCtx, stopCancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer stopCancel()
-			s.Stop(stopCtx)
+			if stopErr := s.Stop(stopCtx); stopErr != nil {
+				s.logger.Error("Failed to stop server after timeout", "error", stopErr)
+			}
 
 			return fmt.Errorf("timeout waiting for adapters to start")
 		case <-ctx.Done():
@@ -168,10 +200,53 @@ func (s *Server) Stop(ctx context.Context) error {
 		}()
 	}
 
+	// Stop metrics server if running
+	if s.metricsServer != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := s.metricsServer.Shutdown(ctx); err != nil {
+				errMu.Lock()
+				errs = append(errs, fmt.Errorf("stopping metrics server: %w", err))
+				errMu.Unlock()
+			}
+		}()
+	}
+
+	// Close router if it has a Close method
+	if s.router != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := s.router.Close(); err != nil {
+				errMu.Lock()
+				errs = append(errs, fmt.Errorf("closing router: %w", err))
+				errMu.Unlock()
+			}
+		}()
+	}
+
+	// Close registry if it has a Close method
+	if s.registry != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := s.registry.Close(); err != nil {
+				errMu.Lock()
+				errs = append(errs, fmt.Errorf("closing registry: %w", err))
+				errMu.Unlock()
+			}
+		}()
+	}
+
 	wg.Wait()
 
 	if len(errs) > 0 {
-		return fmt.Errorf("errors during shutdown: %v", errs)
+		// Wrap at least one error for better error chain
+		if len(errs) == 1 {
+			return errs[0]
+		}
+		return fmt.Errorf("multiple errors during shutdown: %v", errs)
 	}
 
 	s.logger.Info("Gateway stopped successfully")

@@ -400,7 +400,7 @@ func TestServer_StartupFailureRollback(t *testing.T) {
 	// Should get an error
 	if err == nil {
 		t.Error("Expected error when WebSocket port is in use")
-		server.Stop(context.Background())
+		_ = server.Stop(context.Background())
 	}
 
 	// Verify HTTP server is not listening (should have been rolled back)

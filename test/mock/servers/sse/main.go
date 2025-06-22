@@ -136,7 +136,7 @@ func notificationHandler(w http.ResponseWriter, r *http.Request) {
 // healthHandler returns health status
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
+	_, _ = w.Write([]byte("OK"))
 }
 
 func main() {
