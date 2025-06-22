@@ -93,7 +93,7 @@ func (b *Builder) Build() (*Server, error) {
 	}
 
 	// Create HTTP adapter
-	httpAdapter, err := factory.CreateHTTPAdapter(b.config.Gateway.Frontend.HTTP, baseHandler, b.logger)
+	httpAdapterInstance, err := factory.CreateHTTPAdapter(b.config.Gateway.Frontend.HTTP, baseHandler, b.logger)
 	if err != nil {
 		return nil, fmt.Errorf("creating HTTP adapter: %w", err)
 	}
@@ -110,7 +110,16 @@ func (b *Builder) Build() (*Server, error) {
 		version := "1.0.0" // Could be injected via build flags
 
 		healthHandler := factory.CreateHealthHandler(cfg, healthChecker, version, serviceID)
-		httpAdapter.WithHealthHandler(healthHandler)
+		
+		// Set both health handler and health config
+		healthCfg := httpAdapter.HealthConfig{
+			Enabled:       true,
+			HealthPath:    cfg.HealthPath,
+			ReadyPath:     cfg.ReadyPath,
+			LivePath:      cfg.LivePath,
+			HealthHandler: healthHandler,
+		}
+		httpAdapterInstance.WithHealthHandler(healthHandler).WithHealthConfig(healthCfg)
 
 		b.logger.Info("Health checks enabled",
 			"health", cfg.HealthPath,
@@ -122,32 +131,32 @@ func (b *Builder) Build() (*Server, error) {
 	// Add metrics endpoint if enabled
 	if factory.ShouldEnableMetrics(b.config.Gateway.Metrics) {
 		metricsHandler := factory.CreateMetricsHandler()
-		httpAdapter.WithMetricsHandler(metricsHandler)
+		httpAdapterInstance.WithMetricsHandler(metricsHandler)
 		if b.config.Gateway.Metrics.Path != "" {
-			httpAdapter.WithMetricsPath(b.config.Gateway.Metrics.Path)
+			httpAdapterInstance.WithMetricsPath(b.config.Gateway.Metrics.Path)
 		}
 	}
 
 	// Add CORS support if enabled
-	if corsHandler := factory.CreateCORSHandler(b.config.Gateway.CORS, httpAdapter); corsHandler != nil {
-		httpAdapter.WithCORSHandler(corsHandler)
+	if corsHandler := factory.CreateCORSHandler(b.config.Gateway.CORS, httpAdapterInstance); corsHandler != nil {
+		httpAdapterInstance.WithCORSHandler(corsHandler)
 		b.logger.Info("CORS enabled")
 	}
 
 	// Add SSE support if enabled
 	if cfg := b.config.Gateway.Frontend.SSE; cfg != nil && cfg.Enabled {
-		b.addSSESupport(httpAdapter, router, httpClient, authMiddleware)
+		b.addSSESupport(httpAdapterInstance, router, httpClient, authMiddleware, gatewayMetrics)
 	}
 
 	// Create WebSocket adapter if enabled
 	var wsAdapter *wsAdapter.Adapter
 	if cfg := b.config.Gateway.Frontend.WebSocket; cfg != nil && cfg.Enabled {
-		wsAdapter = b.createWebSocketAdapter(router, authMiddleware)
+		wsAdapter = b.createWebSocketAdapter(router, authMiddleware, gatewayMetrics)
 	}
 
 	return &Server{
 		config:      b.config,
-		httpAdapter: httpAdapter,
+		httpAdapter: httpAdapterInstance,
 		wsAdapter:   wsAdapter,
 		logger:      b.logger,
 	}, nil
@@ -155,10 +164,11 @@ func (b *Builder) Build() (*Server, error) {
 
 // addSSESupport adds SSE capabilities to the HTTP adapter
 func (b *Builder) addSSESupport(
-	httpAdapter *httpAdapter.Adapter,
+	httpAdapterInstance *httpAdapter.Adapter,
 	router core.Router,
 	httpClient *http.Client,
 	authMiddleware *auth.Middleware,
+	metrics *metrics.Metrics,
 ) {
 	sseConnector := factory.CreateSSEConnector(b.config.Gateway.Backend.SSE, httpClient, b.logger)
 	sseHandler := factory.CreateSSEHandler(router, sseConnector, b.logger)
@@ -169,13 +179,14 @@ func (b *Builder) addSSESupport(
 	}
 
 	sseHandler = factory.ApplyMiddleware(sseHandler, b.logger, authMiddleware)
-	factory.CreateSSEAdapter(b.config.Gateway.Frontend.SSE, sseHandler, httpAdapter, b.config.Gateway.Auth, b.logger)
+	factory.CreateSSEAdapter(b.config.Gateway.Frontend.SSE, sseHandler, httpAdapterInstance, b.config.Gateway.Auth, b.logger, metrics)
 }
 
 // createWebSocketAdapter creates the WebSocket adapter
 func (b *Builder) createWebSocketAdapter(
 	router core.Router,
 	authMiddleware *auth.Middleware,
+	metrics *metrics.Metrics,
 ) *wsAdapter.Adapter {
 	wsConnector := factory.CreateWebSocketConnector(b.config.Gateway.Backend.WebSocket, b.logger)
 	wsHandler := factory.CreateWebSocketHandler(router, wsConnector, b.logger)
@@ -186,5 +197,5 @@ func (b *Builder) createWebSocketAdapter(
 	}
 
 	wsHandler = factory.ApplyMiddleware(wsHandler, b.logger, authMiddleware)
-	return factory.CreateWebSocketAdapter(b.config.Gateway.Frontend.WebSocket, wsHandler, b.config.Gateway.Auth, b.logger)
+	return factory.CreateWebSocketAdapter(b.config.Gateway.Frontend.WebSocket, wsHandler, b.config.Gateway.Auth, b.logger, metrics)
 }

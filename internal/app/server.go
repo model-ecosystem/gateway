@@ -130,8 +130,10 @@ func (s *Server) Start(ctx context.Context) error {
 		}
 	}
 
-	// On successful startup, we simply return. cancelStartup is not called,
-	// and the goroutines inside the adapters continue to run, governed by ctx.
+	// All adapters started successfully
+	// Cancel the startup context as it's no longer needed
+	cancelStartup()
+	
 	s.logger.Info("Gateway started successfully")
 	return nil
 }

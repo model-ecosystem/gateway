@@ -38,6 +38,7 @@ type Adapter struct {
 	handler        core.Handler
 	logger         *slog.Logger
 	tokenValidator TokenValidator
+	metrics        *SSEMetrics
 }
 
 // NewAdapter creates a new SSE adapter
@@ -59,6 +60,12 @@ func (a *Adapter) WithTokenValidator(validator TokenValidator) *Adapter {
 	return a
 }
 
+// WithMetrics sets the metrics for the adapter
+func (a *Adapter) WithMetrics(metrics *SSEMetrics) *Adapter {
+	a.metrics = metrics
+	return a
+}
+
 // HandleSSE handles an SSE request
 func (a *Adapter) HandleSSE(w http.ResponseWriter, r *http.Request) {
 	// Check if client accepts SSE
@@ -75,12 +82,23 @@ func (a *Adapter) HandleSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Accel-Buffering", "no") // Disable Nginx buffering
 
 	// Create SSE writer with disconnect detection
-	sseWriter := newWriter(w, r.Context())
+	sseWriter := newWriter(w, r.Context(), a.metrics)
 	defer func() {
 		if err := sseWriter.Close(); err != nil {
 			a.logger.Debug("SSE writer close error", "error", err)
 		}
 	}()
+
+	// Track SSE connection
+	if a.metrics != nil {
+		if a.metrics.ConnectionsTotal != nil {
+			a.metrics.ConnectionsTotal.WithLabelValues("", "established").Inc()
+		}
+		if a.metrics.Connections != nil {
+			a.metrics.Connections.Inc()
+			defer a.metrics.Connections.Dec()
+		}
+	}
 
 	// Create SSE request with GET method for routing compatibility
 	req := &sseRequest{

@@ -22,23 +22,25 @@ type writer struct {
 	disconnected bool
 	mu           sync.RWMutex
 	ctx          context.Context
+	metrics      *SSEMetrics
 }
 
 // newWriter creates a new SSE writer with disconnect detection
-func newWriter(w io.Writer, ctx context.Context) *writer {
+func newWriter(w io.Writer, ctx context.Context, metrics *SSEMetrics) *writer {
 	flusher, _ := w.(http.Flusher)
 	return &writer{
 		w:       w,
 		flusher: flusher,
 		buf:     bufio.NewWriter(w),
 		ctx:     ctx,
+		metrics: metrics,
 	}
 }
 
 // WriteEvent writes an SSE event
 func (w *writer) WriteEvent(event *core.SSEEvent) error {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
+	w.mu.Lock()
+	defer w.mu.Unlock()
 
 	// Check if context is done (client disconnected)
 	select {
@@ -101,13 +103,23 @@ func (w *writer) WriteEvent(event *core.SSEEvent) error {
 		return errors.NewError(errors.ErrorTypeInternal, "failed to write SSE event terminator").WithCause(err)
 	}
 
-	return w.Flush()
+	// Flush and track event
+	if err := w.Flush(); err != nil {
+		return err
+	}
+
+	// Track sent event
+	if w.metrics != nil && w.metrics.EventsSent != nil {
+		w.metrics.EventsSent.Inc()
+	}
+
+	return nil
 }
 
 // WriteComment writes a comment (useful for keepalive)
 func (w *writer) WriteComment(comment string) error {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
+	w.mu.Lock()
+	defer w.mu.Unlock()
 
 	// Check if context is done (client disconnected)
 	select {

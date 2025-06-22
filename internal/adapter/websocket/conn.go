@@ -17,6 +17,7 @@ type conn struct {
 	ctx          context.Context
 	disconnected bool
 	mu           sync.RWMutex
+	metrics      *WebSocketMetrics
 }
 
 // newConn creates a new WebSocket connection wrapper
@@ -34,6 +35,16 @@ func newConnWithContext(ws *websocket.Conn, remoteAddr string, ctx context.Conte
 		ws:     ws,
 		remote: remoteAddr,
 		ctx:    ctx,
+	}
+}
+
+// newConnWithMetrics creates a new WebSocket connection wrapper with metrics
+func newConnWithMetrics(ws *websocket.Conn, remoteAddr string, ctx context.Context, metrics *WebSocketMetrics) *conn {
+	return &conn{
+		ws:      ws,
+		remote:  remoteAddr,
+		ctx:     ctx,
+		metrics: metrics,
 	}
 }
 
@@ -58,6 +69,11 @@ func (c *conn) ReadMessage() (*core.WebSocketMessage, error) {
 	if err != nil {
 		c.handleError(err)
 		return nil, err
+	}
+
+	// Track received message
+	if c.metrics != nil && c.metrics.MessagesReceived != nil {
+		c.metrics.MessagesReceived.Inc()
 	}
 
 	return &core.WebSocketMessage{
@@ -88,6 +104,12 @@ func (c *conn) WriteMessage(msg *core.WebSocketMessage) error {
 		c.handleError(err)
 		return err
 	}
+
+	// Track sent message
+	if c.metrics != nil && c.metrics.MessagesSent != nil {
+		c.metrics.MessagesSent.Inc()
+	}
+
 	return nil
 }
 
@@ -115,6 +137,25 @@ func (c *conn) SetPingHandler(h func(data string) error) {
 // SetPongHandler sets the handler for pong messages
 func (c *conn) SetPongHandler(h func(data string) error) {
 	c.ws.SetPongHandler(h)
+}
+
+// WritePing writes a ping message
+func (c *conn) WritePing() error {
+	c.mu.RLock()
+	if c.disconnected {
+		c.mu.RUnlock()
+		return errors.NewError(errors.ErrorTypeInternal, "connection is disconnected")
+	}
+	c.mu.RUnlock()
+
+	// Set write deadline to prevent blocking forever
+	c.ws.SetWriteDeadline(time.Now().Add(10 * time.Second))
+	err := c.ws.WriteMessage(websocket.PingMessage, nil)
+	if err != nil {
+		c.handleError(err)
+		return err
+	}
+	return nil
 }
 
 // LocalAddr returns the local address

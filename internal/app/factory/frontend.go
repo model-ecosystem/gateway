@@ -10,6 +10,7 @@ import (
 	wsAdapter "gateway/internal/adapter/websocket"
 	"gateway/internal/config"
 	"gateway/internal/core"
+	"gateway/internal/metrics"
 	"gateway/internal/middleware/auth/jwt"
 	"gateway/pkg/errors"
 	tlsutil "gateway/pkg/tls"
@@ -50,6 +51,7 @@ func CreateSSEAdapter(
 	httpAdapterInstance *httpAdapter.Adapter,
 	authConfig *config.Auth,
 	logger *slog.Logger,
+	metrics *metrics.Metrics,
 ) {
 	if cfg == nil || !cfg.Enabled {
 		return
@@ -62,6 +64,20 @@ func CreateSSEAdapter(
 	}
 
 	sse := sseAdapter.NewAdapter(sseConfig, handler, logger)
+
+	// Add metrics if provided
+	if metrics != nil {
+		// Extract SSE-specific metrics
+		var sseMetrics *sseAdapter.SSEMetrics
+		if metrics.SSEConnections != nil {
+			sseMetrics = sseAdapter.NewSSEMetrics(
+				metrics.SSEConnections.WithLabelValues(""),
+				metrics.SSEConnectionsTotal,
+				metrics.SSEEventsSent.WithLabelValues(""),
+			)
+			sse.WithMetrics(sseMetrics)
+		}
+	}
 
 	// Add JWT token validator if JWT auth is enabled
 	if authConfig != nil && authConfig.JWT != nil && authConfig.JWT.Enabled {
@@ -85,6 +101,7 @@ func CreateWebSocketAdapter(
 	handler core.Handler,
 	authConfig *config.Auth,
 	logger *slog.Logger,
+	metrics *metrics.Metrics,
 ) *wsAdapter.Adapter {
 	if cfg == nil {
 		return nil
@@ -108,6 +125,22 @@ func CreateWebSocketAdapter(
 	// For now, using default non-TLS configuration
 
 	adapter := wsAdapter.NewAdapter(wsConfig, handler, logger)
+
+	// Add metrics if provided
+	if metrics != nil {
+		// Extract WebSocket-specific metrics
+		var wsMetrics *wsAdapter.WebSocketMetrics
+		if metrics.WebSocketConnections != nil {
+			// Find the gauge for this service (empty label for now)
+			wsMetrics = wsAdapter.NewWebSocketMetrics(
+				metrics.WebSocketConnections.WithLabelValues(""),
+				metrics.WebSocketConnectionsTotal,
+				metrics.WebSocketMessagesSent.WithLabelValues(""),
+				metrics.WebSocketMessagesReceived.WithLabelValues(""),
+			)
+			adapter.WithMetrics(wsMetrics)
+		}
+	}
 
 	// Add JWT token validator if JWT auth is enabled
 	if authConfig != nil && authConfig.JWT != nil && authConfig.JWT.Enabled {

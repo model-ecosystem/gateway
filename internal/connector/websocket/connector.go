@@ -113,6 +113,7 @@ func (c *Connector) Connect(ctx context.Context, instance *core.ServiceInstance,
 		conn:     conn,
 		instance: instance,
 		logger:   c.logger,
+		config:   c.config,
 	}, nil
 }
 
@@ -121,6 +122,7 @@ type Connection struct {
 	conn     *websocket.Conn
 	instance *core.ServiceInstance
 	logger   *slog.Logger
+	config   *Config
 	mu       sync.Mutex
 }
 
@@ -182,6 +184,19 @@ func (c *Connection) SetPongHandler(h func(data string) error) {
 	c.conn.SetPongHandler(h)
 }
 
+// WritePing writes a ping message to the backend
+func (c *Connection) WritePing() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	
+	// Set write deadline to prevent blocking forever
+	c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+	if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+		return errors.NewError(errors.ErrorTypeInternal, "failed to write ping message").WithCause(err)
+	}
+	return nil
+}
+
 // LocalAddr returns the local address
 func (c *Connection) LocalAddr() string {
 	if addr := c.conn.LocalAddr(); addr != nil {
@@ -201,10 +216,39 @@ func (c *Connection) RemoteAddr() string {
 // Proxy bidirectionally proxies messages between client and backend
 func (c *Connection) Proxy(ctx context.Context, clientConn core.WebSocketConn) error {
 	// Error channel to coordinate goroutines
-	errChan := make(chan error, 2)
+	errChan := make(chan error, 3) // Increased for ping goroutine
 
 	// Track message counts
 	var clientToBackend, backendToClient int
+
+	// Setup ping/pong handlers if configured
+	if c.config.PingInterval > 0 && c.config.PongTimeout > 0 {
+		// Set initial read deadline for backend
+		c.conn.SetReadDeadline(time.Now().Add(c.config.PongTimeout))
+		c.conn.SetPongHandler(func(string) error {
+			c.conn.SetReadDeadline(time.Now().Add(c.config.PongTimeout))
+			return nil
+		})
+
+		// Start ping ticker for backend connection
+		go func() {
+			ticker := time.NewTicker(c.config.PingInterval)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					if err := c.WritePing(); err != nil {
+						c.logger.Debug("Failed to send ping to backend", "error", err)
+						errChan <- err
+						return
+					}
+				}
+			}
+		}()
+	}
 
 	// Client to backend
 	go func() {

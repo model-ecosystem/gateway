@@ -390,7 +390,7 @@ func TestSSERequest(t *testing.T) {
 
 	// Create mock writer
 	w := httptest.NewRecorder()
-	writer := newWriter(w, context.Background())
+	writer := newWriter(w, context.Background(), nil)
 
 	// Create SSE request
 	req := &sseRequest{

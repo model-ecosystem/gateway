@@ -23,17 +23,17 @@ func DefaultConfig() *Config {
 	return &Config{
 		Host:             "0.0.0.0",
 		Port:             8081,
-		ReadTimeout:      60,
-		WriteTimeout:     60,
-		HandshakeTimeout: 10,
+		ReadTimeout:      60 * time.Second,
+		WriteTimeout:     60 * time.Second,
+		HandshakeTimeout: 10 * time.Second,
 		ReadBufferSize:   4096,
 		WriteBufferSize:  4096,
 		MaxMessageSize:   1024 * 1024, // 1MB
 		CheckOrigin:      true,
-		WriteDeadline:    30,
-		PongWait:         60,
-		PingPeriod:       30,
-		CloseGracePeriod: 5,
+		WriteDeadline:    30 * time.Second,
+		PongWait:         60 * time.Second,
+		PingPeriod:       30 * time.Second,
+		CloseGracePeriod: 5 * time.Second,
 		MaxConnections:   1024,
 	}
 }
@@ -58,6 +58,7 @@ type Adapter struct {
 	serverCtx      context.Context
 	serverCancel   context.CancelFunc
 	connSemaphore  chan struct{}
+	metrics        *WebSocketMetrics
 }
 
 // NewAdapter creates a new WebSocket adapter
@@ -67,7 +68,7 @@ func NewAdapter(config *Config, handler core.Handler, logger *slog.Logger) *Adap
 	}
 
 	upgrader := &websocket.Upgrader{
-		HandshakeTimeout:  time.Duration(config.HandshakeTimeout) * time.Second,
+		HandshakeTimeout:  config.HandshakeTimeout,
 		ReadBufferSize:    config.ReadBufferSize,
 		WriteBufferSize:   config.WriteBufferSize,
 		EnableCompression: config.EnableCompression,
@@ -110,6 +111,12 @@ func (a *Adapter) WithTokenValidator(validator TokenValidator) *Adapter {
 	return a
 }
 
+// WithMetrics sets the metrics for the adapter
+func (a *Adapter) WithMetrics(metrics *WebSocketMetrics) *Adapter {
+	a.metrics = metrics
+	return a
+}
+
 // Start starts the WebSocket adapter
 func (a *Adapter) Start(ctx context.Context) error {
 	a.mu.Lock()
@@ -128,8 +135,8 @@ func (a *Adapter) Start(ctx context.Context) error {
 	a.server = &http.Server{
 		Addr:         addr,
 		Handler:      mux,
-		ReadTimeout:  time.Duration(a.config.ReadTimeout) * time.Second,
-		WriteTimeout: time.Duration(a.config.WriteTimeout) * time.Second,
+		ReadTimeout:  a.config.ReadTimeout,
+		WriteTimeout: a.config.WriteTimeout,
 		TLSConfig:    a.config.TLSConfig,
 	}
 
@@ -226,6 +233,10 @@ func (a *Adapter) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			"remote", r.RemoteAddr,
 			"maxConnections", a.config.MaxConnections,
 		)
+		// Track rejected connection
+		if a.metrics != nil && a.metrics.ConnectionsTotal != nil {
+			a.metrics.ConnectionsTotal.WithLabelValues("", "rejected").Inc()
+		}
 		http.Error(w, "Too Many Connections", http.StatusServiceUnavailable)
 		return
 	}
@@ -270,12 +281,34 @@ func (a *Adapter) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := a.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		// Error already logged by upgrader.Error
+		// Track failed connection
+		if a.metrics != nil && a.metrics.ConnectionsTotal != nil {
+			a.metrics.ConnectionsTotal.WithLabelValues("", "failed").Inc()
+		}
 		return
 	}
 	// Note: conn.Close() is NOT deferred here - it will be managed by the handler/proxy
 
+	// Track successful connection
+	if a.metrics != nil {
+		if a.metrics.ConnectionsTotal != nil {
+			a.metrics.ConnectionsTotal.WithLabelValues("", "established").Inc()
+		}
+		if a.metrics.Connections != nil {
+			a.metrics.Connections.Inc()
+			defer a.metrics.Connections.Dec()
+		}
+	}
+
 	// Set max message size
 	conn.SetReadLimit(a.config.MaxMessageSize)
+
+	// Setup ping/pong handlers for connection health
+	conn.SetReadDeadline(time.Now().Add(a.config.PongWait))
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(a.config.PongWait))
+		return nil
+	})
 
 	// Setup disconnect handler
 	conn.SetCloseHandler(func(code int, text string) error {
@@ -292,7 +325,7 @@ func (a *Adapter) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	// Create WebSocket connection wrapper with server context (not request context)
 	// This ensures the connection remains valid after the HTTP handler returns
-	wsConn := newConnWithContext(conn, r.RemoteAddr, a.serverCtx)
+	wsConn := newConnWithMetrics(conn, r.RemoteAddr, a.serverCtx, a.metrics)
 
 	// Create request from HTTP upgrade request
 	req := &wsRequest{
@@ -303,6 +336,32 @@ func (a *Adapter) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Handle the WebSocket connection through the handler chain
 	// Use server context for the WebSocket lifetime
 	ctx := a.serverCtx
+
+	// Start ping ticker for client connection if configured
+	if a.config.PingPeriod > 0 {
+		go func() {
+			ticker := time.NewTicker(a.config.PingPeriod)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					// Set write deadline to prevent blocking forever
+					conn.SetWriteDeadline(time.Now().Add(a.config.WriteDeadline))
+					if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+						a.logger.Debug("Failed to send ping to client", 
+							"remote", r.RemoteAddr,
+							"error", err)
+						// Close the connection on ping failure
+						conn.Close()
+						return
+					}
+				}
+			}
+		}()
+	}
 
 	// Start JWT validation if configured
 	if a.tokenValidator != nil {

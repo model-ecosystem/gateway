@@ -22,6 +22,7 @@ type Adapter struct {
 	handler        core.Handler
 	sseHandler     SSEHandler
 	healthHandler  HealthHandler
+	healthConfig   HealthConfig
 	metricsHandler http.Handler
 	corsHandler    http.Handler
 	reqNum         atomic.Uint64
@@ -43,9 +44,10 @@ type SSEHandler interface {
 // New creates a new HTTP adapter
 func New(cfg Config, handler core.Handler) *Adapter {
 	return &Adapter{
-		config:  cfg,
-		handler: handler,
-		logger:  slog.Default().With("component", "http"),
+		config:       cfg,
+		handler:      handler,
+		healthConfig: DefaultHealthConfig(),
+		logger:       slog.Default().With("component", "http"),
 	}
 }
 
@@ -58,6 +60,12 @@ func (a *Adapter) WithSSEHandler(handler SSEHandler) *Adapter {
 // WithHealthHandler sets the health handler
 func (a *Adapter) WithHealthHandler(handler HealthHandler) *Adapter {
 	a.healthHandler = handler
+	return a
+}
+
+// WithHealthConfig sets the health configuration
+func (a *Adapter) WithHealthConfig(config HealthConfig) *Adapter {
+	a.healthConfig = config
 	return a
 }
 
@@ -145,15 +153,15 @@ func (a *Adapter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	a.reqNum.Add(1)
 
 	// Handle health check endpoints first (no request ID needed)
-	if a.healthHandler != nil {
+	if a.healthHandler != nil && a.healthConfig.Enabled {
 		switch r.URL.Path {
-		case "/health":
+		case a.healthConfig.HealthPath:
 			a.healthHandler.Health(w, r)
 			return
-		case "/ready":
+		case a.healthConfig.ReadyPath:
 			a.healthHandler.Ready(w, r)
 			return
-		case "/live":
+		case a.healthConfig.LivePath:
 			a.healthHandler.Live(w, r)
 			return
 		}
