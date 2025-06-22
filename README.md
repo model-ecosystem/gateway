@@ -1,6 +1,16 @@
 # Gateway
 
-A high-performance, multi-protocol API gateway written in Go with clean architecture, supporting HTTP/WebSocket/SSE/gRPC protocols, authentication, rate limiting, and service discovery.
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/images/logo-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="assets/images/logo-light.png">
+    <img src="assets/images/logo-light.png" alt="Model Ecosystem Gateway" width="200">
+  </picture>
+</p>
+
+<p align="center">
+  A high-performance, multi-protocol API gateway written in Go with clean architecture, supporting HTTP/WebSocket/SSE/gRPC protocols, authentication, rate limiting, and service discovery.
+</p>
 
 ## 🚀 Features
 
