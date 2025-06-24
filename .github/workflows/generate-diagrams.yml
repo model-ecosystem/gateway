@@ -23,12 +23,8 @@ jobs:
           fetch-depth: 0
 
       - name: Generate PlantUML Diagrams
-        uses: holowinski/plantuml-github-action@main
-        with:
-          args: -v -tsvg -charset UTF-8 docs/architecture/*.puml
-
-      - name: Move generated files
         run: |
+          docker run --rm -v ${{ github.workspace }}:/workspace plantuml/plantuml -tsvg -charset UTF-8 /workspace/docs/architecture/*.puml
           mkdir -p assets/images/architecture
           mv docs/architecture/*.svg assets/images/architecture/
 
