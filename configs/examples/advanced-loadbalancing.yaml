@@ -1,0 +1,147 @@
+# Advanced Load Balancing Example
+
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+      readTimeout: 30
+      writeTimeout: 30
+      
+  backend:
+    http:
+      maxIdleConns: 100
+      maxIdleConnsPerHost: 10
+      idleConnTimeout: 90
+      keepAlive: true
+      keepAliveTimeout: 30
+      dialTimeout: 10
+      responseHeaderTimeout: 10
+      
+  registry:
+    type: static
+    static:
+      services:
+        # Service with weighted instances
+        - name: weighted-service
+          instances:
+            - id: instance-heavy-1
+              address: "10.0.0.1"
+              port: 8001
+              health: healthy
+              metadata:
+                weight: 3  # Gets 3x more traffic
+            - id: instance-light-1
+              address: "10.0.0.2"
+              port: 8002
+              health: healthy
+              metadata:
+                weight: 1  # Gets 1x traffic
+            - id: instance-medium-1
+              address: "10.0.0.3"
+              port: 8003
+              health: healthy
+              metadata:
+                weight: 2  # Gets 2x traffic
+                
+        # Service for least connections
+        - name: connection-sensitive-service
+          instances:
+            - id: conn-1
+              address: "10.0.1.1"
+              port: 9001
+              health: healthy
+            - id: conn-2
+              address: "10.0.1.2"
+              port: 9002
+              health: healthy
+            - id: conn-3
+              address: "10.0.1.3"
+              port: 9003
+              health: healthy
+              
+        # Service for response time based
+        - name: latency-sensitive-service
+          instances:
+            - id: fast-1
+              address: "10.0.2.1"
+              port: 7001
+              health: healthy
+            - id: fast-2
+              address: "10.0.2.2"
+              port: 7002
+              health: healthy
+            - id: slow-1
+              address: "10.0.2.3"
+              port: 7003
+              health: healthy
+              
+        # Service for adaptive balancing
+        - name: adaptive-service
+          instances:
+            - id: adaptive-1
+              address: "10.0.3.1"
+              port: 6001
+              health: healthy
+            - id: adaptive-2
+              address: "10.0.3.2"
+              port: 6002
+              health: healthy
+            - id: adaptive-3
+              address: "10.0.3.3"
+              port: 6003
+              health: healthy
+              
+  router:
+    rules:
+      # Weighted round-robin example
+      - id: weighted-round-robin-route
+        path: /api/weighted/*
+        serviceName: weighted-service
+        loadBalance: weighted_round_robin
+        timeout: 10
+        
+      # Weighted random example
+      - id: weighted-random-route
+        path: /api/weighted-random/*
+        serviceName: weighted-service
+        loadBalance: weighted_random
+        timeout: 10
+        
+      # Least connections example
+      - id: least-connections-route
+        path: /api/connections/*
+        serviceName: connection-sensitive-service
+        loadBalance: least_connections
+        timeout: 30
+        
+      # Response time based example
+      - id: response-time-route
+        path: /api/latency/*
+        serviceName: latency-sensitive-service
+        loadBalance: response_time
+        timeout: 5
+        
+      # Adaptive balancing example
+      - id: adaptive-route
+        path: /api/adaptive/*
+        serviceName: adaptive-service
+        loadBalance: adaptive
+        timeout: 10
+        
+      # Traditional round-robin for comparison
+      - id: round-robin-route
+        path: /api/traditional/*
+        serviceName: adaptive-service
+        loadBalance: round_robin
+        timeout: 10
+        
+  # Optional: Enable telemetry to track load balancer performance
+  telemetry:
+    enabled: true
+    otlp:
+      endpoint: "localhost:4317"
+      insecure: true
+    service:
+      name: "gateway-advanced-lb"
+      version: "1.0.0"

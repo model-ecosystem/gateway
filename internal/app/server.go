@@ -15,13 +15,16 @@ import (
 
 // Server represents the gateway server
 type Server struct {
-	config        *config.Config
-	httpAdapter   *httpAdapter.Adapter
-	wsAdapter     *wsAdapter.Adapter
-	metricsServer *http.Server
-	router        interface{ Close() error } // Router with Close method
-	registry      interface{ Close() error } // Registry with Close method
-	logger        *slog.Logger
+	config         *config.Config
+	httpAdapter    *httpAdapter.Adapter
+	wsAdapter      *wsAdapter.Adapter
+	metricsServer  *http.Server
+	managementAPI  interface{ Start(context.Context) error; Stop(context.Context) error } // Management API
+	router         interface{ Close() error } // Router with Close method
+	registry       interface{ Close() error } // Registry with Close method
+	telemetry      interface{ Shutdown(context.Context) error } // Telemetry with Shutdown method
+	backendMonitor interface{ Stop() error } // Backend monitor with Stop method
+	logger         *slog.Logger
 }
 
 // NewServer creates a new gateway server
@@ -67,9 +70,9 @@ func (s *Server) Start(ctx context.Context) error {
 	// DO NOT defer cancelStartup() here - it should only be called on error paths
 
 	// Channel to collect startup errors
-	errCh := make(chan error, 2)
+	errCh := make(chan error, 3)
 	// Channel to signal successful starts
-	startedCh := make(chan struct{}, 2)
+	startedCh := make(chan struct{}, 3)
 	expectedStarts := 1 // HTTP adapter always starts
 
 	// Start HTTP adapter
@@ -118,6 +121,19 @@ func (s *Server) Start(ctx context.Context) error {
 				case <-startupCtx.Done():
 					// Context canceled, don't send error
 				}
+			}
+		}()
+	}
+
+	// Start management API if enabled
+	if s.managementAPI != nil {
+		expectedStarts++
+		go func() {
+			s.logger.Info("Starting management API")
+			if err := s.managementAPI.Start(startupCtx); err != nil {
+				errCh <- fmt.Errorf("management API: %w", err)
+			} else {
+				startedCh <- struct{}{}
 			}
 		}()
 	}
@@ -213,6 +229,19 @@ func (s *Server) Stop(ctx context.Context) error {
 		}()
 	}
 
+	// Stop management API if running
+	if s.managementAPI != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := s.managementAPI.Stop(ctx); err != nil {
+				errMu.Lock()
+				errs = append(errs, fmt.Errorf("stopping management API: %w", err))
+				errMu.Unlock()
+			}
+		}()
+	}
+
 	// Close router if it has a Close method
 	if s.router != nil {
 		wg.Add(1)
@@ -237,6 +266,38 @@ func (s *Server) Stop(ctx context.Context) error {
 				errMu.Unlock()
 			}
 		}()
+	}
+
+	// Shutdown telemetry if it exists
+	if s.telemetry != nil {
+		// Type assert outside goroutine to avoid nil interface dereference
+		if telemetry, ok := s.telemetry.(interface{ Shutdown(context.Context) error }); ok && telemetry != nil {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				if err := telemetry.Shutdown(ctx); err != nil {
+					errMu.Lock()
+					errs = append(errs, fmt.Errorf("shutting down telemetry: %w", err))
+					errMu.Unlock()
+				}
+			}()
+		}
+	}
+
+	// Stop backend monitor if it exists
+	if s.backendMonitor != nil {
+		// Type assert outside goroutine to avoid nil interface dereference
+		if monitor, ok := s.backendMonitor.(interface{ Stop() error }); ok && monitor != nil {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				if err := monitor.Stop(); err != nil {
+					errMu.Lock()
+					errs = append(errs, fmt.Errorf("stopping backend monitor: %w", err))
+					errMu.Unlock()
+				}
+			}()
+		}
 	}
 
 	wg.Wait()

@@ -1,0 +1,166 @@
+# Multi-Version API Support Example
+# This example shows how to configure API versioning with different strategies
+
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+
+  # API Versioning Configuration
+  versioning:
+    enabled: true
+    strategy: path          # Options: path, header, query, accept
+    defaultVersion: "1.0"   # Default version when none specified
+    
+    # Strategy-specific settings
+    versionHeader: "X-API-Version"    # For header strategy
+    versionQuery: "version"           # For query strategy
+    acceptPattern: 'version=(\d+(?:\.\d+)?)'  # For accept strategy
+    
+    # Deprecated versions
+    deprecatedVersions:
+      "1.0":
+        message: "Version 1.0 is deprecated and will be removed on 2025-08-01"
+        sunsetDate: "2025-06-01T00:00:00Z"
+        removalDate: "2025-08-01T00:00:00Z"
+      "1.5":
+        message: "Version 1.5 has limited support"
+        sunsetDate: "2025-07-01T00:00:00Z"
+    
+    # Version mappings
+    versionMappings:
+      "1.0":
+        service: "api-service-legacy"     # Route to legacy service
+        deprecated: true
+      "2.0":
+        service: "api-service-v2"         # Route to v2 service
+        pathPrefix: ""                    # No path modification
+        transformations:                  # Response transformations
+          rename_fields:
+            - from: "user_name"
+              to: "username"
+            - from: "created_at"
+              to: "createdAt"
+      "3.0":
+        service: "api-service-v3"         # Route to v3 service
+        pathPrefix: ""
+        transformations:
+          add_fields:
+            - path: "$.meta.version"
+              value: "3.0"
+
+  # Service registry
+  registry:
+    type: static
+    static:
+      services:
+        # Legacy API service (v1.0)
+        - name: api-service-legacy
+          instances:
+            - id: legacy-1
+              address: "legacy-api.internal"
+              port: 8081
+              health: healthy
+        
+        # Current API service (v2.0)
+        - name: api-service-v2
+          instances:
+            - id: v2-1
+              address: "api-v2.internal"
+              port: 8082
+              health: healthy
+            - id: v2-2
+              address: "api-v2-replica.internal"
+              port: 8082
+              health: healthy
+        
+        # Next-gen API service (v3.0)
+        - name: api-service-v3
+          instances:
+            - id: v3-1
+              address: "api-v3.internal"
+              port: 8083
+              health: healthy
+        
+        # Default service (when no version mapping)
+        - name: api-service
+          instances:
+            - id: default-1
+              address: "api.internal"
+              port: 8080
+              health: healthy
+
+  # Routing rules
+  router:
+    rules:
+      # API routes with versioning
+      - id: api-users
+        path: /users/*
+        serviceName: api-service
+        loadBalance: round_robin
+        timeout: 30
+        middleware:
+          - versioning    # Apply versioning middleware
+      
+      - id: api-products
+        path: /products/*
+        serviceName: api-service
+        loadBalance: round_robin
+        timeout: 30
+        middleware:
+          - versioning
+      
+      - id: api-orders
+        path: /orders/*
+        serviceName: api-service
+        loadBalance: round_robin
+        timeout: 30
+        middleware:
+          - versioning
+      
+      # Version-specific routes (override versioning)
+      - id: api-v3-beta
+        path: /v3-beta/*
+        serviceName: api-service-v3
+        loadBalance: round_robin
+        timeout: 30
+        metadata:
+          beta: true
+      
+      # Health check (no versioning)
+      - id: health
+        path: /health
+        serviceName: api-service
+        timeout: 10
+
+# Example Usage:
+
+# 1. Path-based versioning:
+#    GET /v1/users/123     → Routes to api-service-legacy
+#    GET /v2/users/123     → Routes to api-service-v2
+#    GET /v3/users/123     → Routes to api-service-v3
+#    GET /users/123        → Routes to api-service (default v1.0)
+
+# 2. Header-based versioning (change strategy to "header"):
+#    GET /users/123 with X-API-Version: 2.0 → Routes to api-service-v2
+
+# 3. Query-based versioning (change strategy to "query"):
+#    GET /users/123?version=2.0 → Routes to api-service-v2
+
+# 4. Accept header versioning (change strategy to "accept"):
+#    GET /users/123 with Accept: application/vnd.api+json;version=2.0
+
+# Response Headers Added:
+# - X-API-Version: 2.0
+# - X-API-Deprecated: true (for deprecated versions)
+# - X-API-Deprecation-Message: "Version 1.0 is deprecated..."
+# - Sunset: Mon, 01 Jun 2025 00:00:00 GMT (RFC1123 format)
+
+# Benefits:
+# 1. Smooth API evolution without breaking clients
+# 2. Multiple versioning strategies to suit different needs
+# 3. Clear deprecation timeline communication
+# 4. Automatic routing to version-specific services
+# 5. Response transformation between versions
+# 6. Support for gradual migration

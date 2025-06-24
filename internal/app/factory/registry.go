@@ -6,49 +6,53 @@ import (
 
 	"gateway/internal/config"
 	"gateway/internal/core"
-	"gateway/internal/registry/docker"
-	"gateway/internal/registry/static"
+	"gateway/internal/health"
+	"gateway/internal/registry"
 )
 
+// RegistryFactory creates service registry instances
+type RegistryFactory struct {
+	BaseComponentFactory
+}
+
+// NewRegistryFactory creates a new registry factory
+func NewRegistryFactory(logger *slog.Logger) *RegistryFactory {
+	return &RegistryFactory{
+		BaseComponentFactory: NewBaseComponentFactory(logger),
+	}
+}
+
 // CreateRegistry creates a service registry based on configuration
-func CreateRegistry(cfg *config.Registry, logger *slog.Logger) (core.ServiceRegistry, error) {
-	switch cfg.Type {
-	case "docker":
-		return createDockerRegistry(cfg.Docker, logger)
-	case "static", "":
-		return createStaticRegistry(cfg.Static, logger)
-	default:
-		return nil, fmt.Errorf("unknown registry type: %s", cfg.Type)
+func (f *RegistryFactory) CreateRegistry(cfg *config.Registry) (core.ServiceRegistry, error) {
+	registryComponent := registry.NewComponent(f.logger)
+	if err := registryComponent.Init(func(v interface{}) error {
+		return f.ParseConfig(*cfg, v)
+	}); err != nil {
+		return nil, fmt.Errorf("initializing registry: %w", err)
 	}
+	
+	if err := registryComponent.Validate(); err != nil {
+		return nil, fmt.Errorf("validating registry: %w", err)
+	}
+	
+	registryComp := registryComponent.(*registry.Component)
+	return registryComp.Build(), nil
 }
 
-// createDockerRegistry creates a Docker-based service registry
-func createDockerRegistry(cfg *config.DockerRegistry, logger *slog.Logger) (*docker.Registry, error) {
-	if cfg == nil {
-		cfg = &config.DockerRegistry{}
+// CreateHealthAwareRegistry creates a health-aware service registry
+func (f *RegistryFactory) CreateHealthAwareRegistry(cfg *config.Registry, healthCfg *config.Health) (core.ServiceRegistry, *health.BackendMonitor, error) {
+	// First create the base registry
+	baseRegistry, err := f.CreateRegistry(cfg)
+	if err != nil {
+		return nil, nil, err
 	}
-
-	dockerConfig := &docker.Config{
-		Host:            cfg.Host,
-		Version:         cfg.Version,
-		CertPath:        cfg.CertPath,
-		LabelPrefix:     cfg.LabelPrefix,
-		Network:         cfg.Network,
-		RefreshInterval: cfg.RefreshInterval,
+	
+	// If health is not enabled, just return the base registry
+	if healthCfg == nil || !healthCfg.Enabled {
+		return baseRegistry, nil, nil
 	}
-
-	// Set defaults
-	if dockerConfig.LabelPrefix == "" {
-		dockerConfig.LabelPrefix = "gateway"
-	}
-	if dockerConfig.RefreshInterval == 0 {
-		dockerConfig.RefreshInterval = 10
-	}
-
-	return docker.NewRegistry(dockerConfig, logger)
-}
-
-// createStaticRegistry creates a static service registry
-func createStaticRegistry(cfg *config.StaticRegistry, logger *slog.Logger) (*static.Registry, error) {
-	return static.NewRegistry(cfg)
+	
+	// For now, just return the base registry without health monitoring
+	// Health monitoring is handled by the health component separately
+	return baseRegistry, nil, nil
 }

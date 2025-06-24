@@ -1,0 +1,109 @@
+# gRPC Gateway with Multi-Source Descriptor Loading
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+      readTimeout: 30
+      writeTimeout: 30
+      enableHTTP2: true
+  
+  backend:
+    grpc:
+      maxCallSendMsgSize: 4194304    # 4MB
+      maxCallRecvMsgSize: 4194304    # 4MB
+      keepAlive:
+        time: 30
+        timeout: 10
+      dialTimeout: 10
+      enableTracing: false
+      enableReflection: false
+  
+  # Service registry
+  registry:
+    type: static
+    static:
+      services:
+        - name: grpc-service
+          instances:
+            - id: grpc-1
+              address: "127.0.0.1"
+              port: 50051
+              health: healthy
+              protocol: grpc
+        - name: grpc-service-2
+          instances:
+            - id: grpc-2
+              address: "127.0.0.1"
+              port: 50052
+              health: healthy
+              protocol: grpc
+  
+  # Router configuration
+  router:
+    rules:
+      # Route configured in static config
+      - id: grpc-echo
+        path: /v1/echo/*
+        serviceName: grpc-service
+        protocol: grpc
+        metadata:
+          grpcService: "echo.EchoService"
+          grpcMethod: "Echo"
+    
+  # gRPC transcoding configuration with multi-source support
+  protocols:
+    grpc:
+      enabled: true
+      # Descriptor sources - can load from multiple sources
+      descriptorSources:
+        # Load from local file system
+        - type: file
+          paths:
+            - "/app/descriptors/echo.desc"
+            - "/app/descriptors/user.desc"
+        
+        # Load from HTTP/HTTPS endpoints
+        - type: http
+          urls:
+            - "https://api.example.com/descriptors/payment.desc"
+            - "https://api.example.com/descriptors/order.desc"
+          headers:
+            Authorization: "Bearer ${DESCRIPTOR_API_TOKEN}"
+          timeout: 10
+        
+        # Load from Kubernetes ConfigMap
+        - type: k8s-configmap
+          namespace: default
+          configMaps:
+            - name: grpc-descriptors
+              keys:
+                - "notification.desc"
+                - "analytics.desc"
+            - name: shared-descriptors
+              keys:
+                - "common.desc"
+      
+      # Automatic reload when descriptors change
+      autoReload: true
+      reloadInterval: 30
+      
+      # JSON transcoding options
+      jsonTranscoding:
+        enabled: true
+        printOptions:
+          addWhitespace: true
+          alwaysPrintPrimitiveFields: false
+          alwaysPrintEnumsAsInts: false
+          preserveProtoFieldNames: false
+      
+      # Service mapping
+      services:
+        - name: echo.EchoService
+          backend: grpc-service
+        - name: user.UserService
+          backend: grpc-service
+        - name: payment.PaymentService
+          backend: grpc-service-2
+        - name: order.OrderService
+          backend: grpc-service-2

@@ -1,0 +1,96 @@
+# gRPC Gateway with Dynamic Descriptor Loading
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+      readTimeout: 30
+      writeTimeout: 30
+
+  backend:
+    grpc:
+      # Maximum message size (4MB)
+      maxMessageSize: 4194304
+      # Keep alive settings
+      keepAlive:
+        time: 30
+        timeout: 10
+      # Connection pool settings
+      poolSize: 10
+      # Dynamic descriptor configuration
+      descriptors:
+        # List of .desc files to load
+        descriptorFiles:
+          - "/path/to/service1.desc"
+          - "/path/to/service2.desc"
+        # Directories to scan for .desc files
+        descriptorDirs:
+          - "/path/to/descriptors"
+        # Enable automatic reloading when files change
+        autoReload: true
+        # Reload check interval (used as fallback if file watching fails)
+        reloadInterval: 30s
+        # Fail gateway startup if descriptors can't be loaded
+        failOnError: false
+
+  registry:
+    type: static
+    static:
+      services:
+        - name: grpc-service
+          instances:
+            - id: grpc-1
+              address: "localhost"
+              port: 50051
+              health: healthy
+
+  router:
+    rules:
+      # gRPC transcoding route - converts JSON to gRPC
+      - id: grpc-transcode
+        path: /api/v1/*
+        serviceName: grpc-service
+        protocol: grpc
+        grpc:
+          # Enable JSON to gRPC transcoding
+          transcoding: true
+          # Service and method mapping (optional, can be auto-discovered from descriptors)
+          service: "myapp.UserService"
+          method: "GetUser"
+
+      # Direct gRPC route (gRPC-Web compatible)
+      - id: grpc-direct
+        path: /myapp.UserService/*
+        serviceName: grpc-service
+        protocol: grpc
+        grpc:
+          # No transcoding for direct gRPC calls
+          transcoding: false
+
+  middleware:
+    - type: telemetry
+    - type: metrics
+    - type: logging
+    - type: recovery
+
+# Example descriptor file generation:
+# protoc --descriptor_set_out=service.desc --include_imports service.proto
+
+# REST API endpoints for descriptor management:
+# GET    /api/grpc/descriptors       - List loaded descriptors
+# POST   /api/grpc/descriptors       - Upload new descriptor (multipart form)
+# DELETE /api/grpc/descriptors?file= - Remove descriptor from config
+# POST   /api/grpc/descriptors/reload - Reload descriptors
+
+# Example usage:
+# 1. Upload a descriptor:
+#    curl -X POST -F "descriptor=@service.desc" http://localhost:8080/api/grpc/descriptors
+#
+# 2. List loaded descriptors:
+#    curl http://localhost:8080/api/grpc/descriptors
+#
+# 3. Reload all descriptors:
+#    curl -X POST http://localhost:8080/api/grpc/descriptors/reload
+#
+# 4. Reload specific descriptor:
+#    curl -X POST "http://localhost:8080/api/grpc/descriptors/reload?file=/path/to/service.desc"

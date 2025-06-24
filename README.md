@@ -12,7 +12,37 @@
   A high-performance, multi-protocol API gateway written in Go with clean architecture, supporting HTTP/WebSocket/SSE/gRPC protocols, authentication, rate limiting, and service discovery.
 </p>
 
-## 🚀 Features
+## Quick Start
+
+```bash
+# Install
+go install github.com/model-ecosystem/gateway@latest
+
+# Run with zero config
+gateway
+
+# Test it works
+curl http://localhost:8080/_gateway/health
+
+# Proxy to a backend
+echo 'gateway:
+  router:
+    rules:
+      - path: /*
+        serviceName: httpbin
+  registry:
+    static:
+      services:
+        - name: httpbin
+          instances:
+            - address: httpbin.org
+              port: 443' > gateway.yaml
+              
+gateway -config gateway.yaml
+curl http://localhost:8080/get
+```
+
+## Features
 
 ### Core Features
 - **HTTP Gateway**: High-performance reverse proxy with streaming responses
@@ -40,6 +70,18 @@
 - **Docker Discovery**: Automatic discovery via container labels
 - **Health Checking**: Active and passive health monitoring
 
+### Resilience & Reliability
+- **Circuit Breaker**: Prevent cascading failures
+- **Request Retry**: Configurable retry with exponential backoff
+- **Advanced Load Balancing**: Weighted, least-connections, response-time based
+- **Retry Budget**: Prevent retry storms
+
+### Observability
+- **OpenTelemetry Integration**: Distributed tracing and metrics
+- **Prometheus Metrics**: Request rates, latencies, error rates
+- **Structured Logging**: JSON logs with trace correlation
+- **Health Endpoints**: Built-in gateway health status
+
 ## Quick Start
 
 ```bash
@@ -58,14 +100,6 @@ make test
 # Clean build artifacts
 make clean
 ```
-
-## Examples
-
-See the `/examples` directory for complete working examples:
-- `basic/` - Simple HTTP routing example
-- `websocket-chat/` - Real-time chat using WebSocket
-- `sse-dashboard/` - Live dashboard using Server-Sent Events
-- `microservices/` - Complete microservices setup with authentication
 
 ## Configuration
 
@@ -100,35 +134,33 @@ gateway:
         timeout: 10  # Per-route timeout in seconds
 ```
 
-## 🏗️ Architecture
+## Architecture
 
 The gateway follows a clean three-layer architecture with idiomatic Go patterns.
 
 ### Core Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        Frontend Layer                         │
-│  ┌─────────┐  ┌───────────┐  ┌─────┐  ┌──────────────────┐ │
-│  │  HTTP   │  │ WebSocket │  │ SSE │  │ Protocol Adapter │ │
-│  └────┬────┘  └─────┬─────┘  └──┬──┘  └────────┬─────────┘ │
-└───────┼─────────────┼───────────┼──────────────┼───────────┘
-        │             │           │              │
-┌───────▼─────────────▼───────────▼──────────────▼───────────┐
-│                        Middle Layer                           │
-│  ┌────────────┐  ┌──────────┐  ┌─────────┐  ┌───────────┐  │
-│  │ Middleware │  │  Router  │  │ Registry│  │ Load      │  │
-│  │ Chain      │  │          │  │         │  │ Balancer  │  │
-│  └────────────┘  └──────────┘  └─────────┘  └───────────┘  │
-└──────────────────────────────────────────────────────────────┘
-        │             │           │              │
-┌───────▼─────────────▼───────────▼──────────────▼───────────┐
-│                        Backend Layer                          │
-│  ┌─────────┐  ┌───────────┐  ┌─────┐  ┌──────┐            │
-│  │  HTTP   │  │ WebSocket │  │ SSE │  │ gRPC │            │
-│  └─────────┘  └───────────┘  └─────┘  └──────┘            │
-└──────────────────────────────────────────────────────────────┘
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/images/architecture/gateway-overview-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="assets/images/architecture/gateway-overview.svg">
+  <img src="assets/images/architecture/gateway-overview.svg" alt="Gateway Architecture">
+</picture>
+
+The gateway implements a layered architecture with clear separation between data flow and control plane:
+
+- **Data Flow Path**: Client → Protocol Adapter → Auth → Rate Limiter → Router → Load Balancer → Backend Connector → Services
+- **Control Plane**: Configuration Manager and Service Registry configure the data plane components
+- **Protocol Support**: HTTP/HTTPS, WebSocket, SSE ingress; HTTP, gRPC, WebSocket, SSE egress
+
+For detailed architecture documentation, see [Architecture Guide](docs/architecture/README.md).
+
+### Request Flow
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/images/architecture/request-flow-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="assets/images/architecture/request-flow.svg">
+  <img src="assets/images/architecture/request-flow.svg" alt="Gateway Request Flow">
+</picture>
 
 ### Key Design Principles
 
@@ -139,49 +171,8 @@ The gateway follows a clean three-layer architecture with idiomatic Go patterns.
 - **Standard Library**: Minimal dependencies, built on net/http
 - **Graceful Degradation**: Fallback mechanisms for service failures
 
-## 📁 Project Structure
 
-```
-gateway/
-├── cmd/gateway/              # Main application entry point
-├── internal/                 # Private application code
-│   ├── adapter/              # Protocol adapters (Frontend)
-│   │   ├── http/            # HTTP/HTTPS adapter
-│   │   ├── websocket/       # WebSocket adapter
-│   │   └── sse/             # Server-Sent Events adapter
-│   ├── connector/            # Backend connectors
-│   │   ├── http/            # HTTP backend connector
-│   │   ├── websocket/       # WebSocket backend connector
-│   │   ├── sse/             # SSE backend connector
-│   │   └── grpc/            # gRPC backend connector
-│   ├── middleware/           # Middleware implementations
-│   │   ├── auth/            # Authentication (JWT, API Key)
-│   │   ├── ratelimit/       # Rate limiting
-│   │   └── recovery/        # Panic recovery
-│   ├── router/              # Request routing and load balancing
-│   ├── registry/            # Service discovery
-│   │   ├── static/          # Static configuration
-│   │   └── docker/          # Docker-based discovery
-│   ├── app/                 # Application setup and factories
-│   ├── config/              # Configuration management
-│   └── core/                # Core interfaces and types
-├── pkg/                     # Public packages
-│   ├── errors/              # Error types and handling
-│   └── tls/                 # TLS utilities
-├── configs/                 # Configuration files
-│   ├── base/                # Base configurations
-│   ├── dev/                 # Development configs
-│   └── examples/            # Example configurations
-├── test/                    # Test suites
-│   ├── integration/         # Integration tests
-│   ├── e2e/                 # End-to-end tests
-│   └── mock/                # Mock servers and data
-├── examples/                # Example applications
-├── deployments/             # Deployment configurations
-└── scripts/                 # Build and development scripts
-```
-
-## 🛡️ Error Handling
+## Error Handling
 
 The gateway uses structured errors that automatically map to HTTP status codes:
 
@@ -237,19 +228,48 @@ go test ./test/integration/...
 - `github.com/gorilla/websocket` - WebSocket support
 - `github.com/docker/docker` - Docker service discovery
 - `github.com/golang-jwt/jwt/v5` - JWT authentication
+- `github.com/prometheus/client_golang` - Prometheus metrics
+- `github.com/redis/go-redis/v9` - Redis support for rate limiting
+- `go.opentelemetry.io/otel` - OpenTelemetry integration
+- `google.golang.org/grpc` - gRPC support
+- `k8s.io/client-go` - Kubernetes service discovery
+- `github.com/fsnotify/fsnotify` - File watching for hot reload
 - Standard library for core functionality
+
+## Documentation
+
+Comprehensive documentation is available in the `/docs` directory:
+
+### Guides
+- **[Getting Started](docs/guides/getting-started.md)** - Quick setup and basic usage
+- **[Configuration Guide](docs/guides/configuration.md)** - Complete configuration reference
+- **[Authentication](docs/guides/authentication.md)** - JWT and API key setup
+- **[Rate Limiting](docs/guides/rate-limiting.md)** - Request rate limiting
+- **[TLS Setup](docs/guides/tls-setup.md)** - TLS/mTLS configuration
+- **[gRPC Support](docs/guides/grpc.md)** - gRPC backends and transcoding
+- **[Metrics & Monitoring](docs/guides/metrics.md)** - Observability features
+- **[Resilience Patterns](docs/guides/resilience.md)** - Circuit breakers and retries
+
+### Architecture
+- **[Architecture Overview](docs/architecture/overview.md)** - System design and components
+- **[Documentation Index](docs/README.md)** - Complete documentation navigation
 
 ## Configuration Examples
 
-See `/configs/examples/` for working configuration examples:
-- Basic HTTP routing
-- Authentication (JWT, API Key)
-- TLS/mTLS setup
-- WebSocket configuration
-- SSE configuration
-- Docker discovery
-- gRPC backend and transcoding
-- Session affinity
+See working configuration examples in:
+- `/configs/base/gateway.yaml` - Basic HTTP routing configuration
+- `/configs/examples/`:
+  - `auth.yaml` - JWT and API Key authentication
+  - `tls.yaml` - TLS/mTLS setup
+  - `websocket.yaml` - WebSocket configuration
+  - `sse.yaml` - Server-Sent Events
+  - `grpc.yaml` - gRPC backend and transcoding
+  - `docker.yaml` - Docker service discovery
+  - `session-affinity.yaml` - Sticky sessions
+  - `ratelimit.yaml` - Rate limiting
+  - `circuit-breaker.yaml` - Circuit breaker patterns
+  - `retry.yaml` - Retry configuration
+  - `telemetry.yaml` - OpenTelemetry setup
 
 ## License
 

@@ -1,0 +1,224 @@
+# OpenAPI Dynamic Routes Example
+# This example shows how to load routes dynamically from OpenAPI specifications
+
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+
+  # OpenAPI configuration
+  openapi:
+    enabled: true
+    specsDirectory: "./specs"      # Directory containing OpenAPI specs
+    watchFiles: true               # Watch for file changes
+    reloadInterval: 300            # Reload URLs every 5 minutes
+    defaultService: "api-service"  # Default service if not specified
+    
+    # Load specs from URLs
+    specUrls:
+      - "https://api.example.com/openapi.yaml"
+      - "https://raw.githubusercontent.com/example/api/main/openapi.json"
+    
+    # Map OpenAPI tags to services
+    serviceMappings:
+      users: "user-service"
+      products: "product-service"
+      orders: "order-service"
+      auth: "auth-service"
+
+  # Base services (OpenAPI routes will be added dynamically)
+  router:
+    rules:
+      # Health check (static route)
+      - id: "health"
+        path: "/health"
+        serviceName: "health-service"
+        metadata:
+          skipAuth: true
+      
+      # Metrics (static route)
+      - id: "metrics"
+        path: "/metrics"
+        serviceName: "metrics-service"
+        metadata:
+          skipAuth: true
+
+  registry:
+    type: static
+    static:
+      services:
+        - name: "health-service"
+          instances:
+            - id: "health-1"
+              address: "127.0.0.1"
+              port: 9001
+        
+        - name: "metrics-service"
+          instances:
+            - id: "metrics-1"
+              address: "127.0.0.1"
+              port: 9002
+        
+        - name: "api-service"
+          instances:
+            - id: "api-1"
+              address: "127.0.0.1"
+              port: 9003
+            - id: "api-2"
+              address: "127.0.0.1"
+              port: 9004
+        
+        - name: "user-service"
+          instances:
+            - id: "user-1"
+              address: "127.0.0.1"
+              port: 9010
+        
+        - name: "product-service"
+          instances:
+            - id: "product-1"
+              address: "127.0.0.1"
+              port: 9020
+        
+        - name: "order-service"
+          instances:
+            - id: "order-1"
+              address: "127.0.0.1"
+              port: 9030
+        
+        - name: "auth-service"
+          instances:
+            - id: "auth-1"
+              address: "127.0.0.1"
+              port: 9040
+
+# Example OpenAPI spec file (save as specs/users-api.yaml)
+# ---
+# openapi: "3.0.0"
+# info:
+#   title: "Users API"
+#   version: "1.0.0"
+#   description: "User management API"
+# 
+# servers:
+#   - url: "https://api.example.com/v1"
+#     description: "Production server"
+# 
+# paths:
+#   /users:
+#     get:
+#       operationId: "listUsers"
+#       summary: "List all users"
+#       tags:
+#         - users
+#       x-gateway:
+#         loadBalance: "round_robin"
+#         timeout: 30
+#         authRequired: true
+#         requiredScopes:
+#           - "users:read"
+#       responses:
+#         "200":
+#           description: "List of users"
+#     
+#     post:
+#       operationId: "createUser"
+#       summary: "Create a new user"
+#       tags:
+#         - users
+#       x-gateway:
+#         rateLimit: 100
+#         authRequired: true
+#         requiredScopes:
+#           - "users:write"
+#       requestBody:
+#         required: true
+#         content:
+#           application/json:
+#             schema:
+#               type: object
+#       responses:
+#         "201":
+#           description: "User created"
+#   
+#   /users/{userId}:
+#     get:
+#       operationId: "getUser"
+#       summary: "Get user by ID"
+#       tags:
+#         - users
+#       parameters:
+#         - name: userId
+#           in: path
+#           required: true
+#           schema:
+#             type: string
+#       x-gateway:
+#         authRequired: true
+#         requiredScopes:
+#           - "users:read"
+#       responses:
+#         "200":
+#           description: "User details"
+#         "404":
+#           description: "User not found"
+#     
+#     put:
+#       operationId: "updateUser"
+#       summary: "Update user"
+#       tags:
+#         - users
+#       parameters:
+#         - name: userId
+#           in: path
+#           required: true
+#           schema:
+#             type: string
+#       x-gateway:
+#         authRequired: true
+#         requiredScopes:
+#           - "users:write"
+#       requestBody:
+#         required: true
+#         content:
+#           application/json:
+#             schema:
+#               type: object
+#       responses:
+#         "200":
+#           description: "User updated"
+#     
+#     delete:
+#       operationId: "deleteUser"
+#       summary: "Delete user"
+#       tags:
+#         - users
+#       parameters:
+#         - name: userId
+#           in: path
+#           required: true
+#           schema:
+#             type: string
+#       x-gateway:
+#         authRequired: true
+#         requiredScopes:
+#           - "users:delete"
+#       responses:
+#         "204":
+#           description: "User deleted"
+# 
+# tags:
+#   - name: users
+#     description: "User management operations"
+#     x-service: "user-service"  # Maps to user-service backend
+# 
+# components:
+#   securitySchemes:
+#     bearerAuth:
+#       type: http
+#       scheme: bearer
+#       bearerFormat: JWT
+# 
+# security:
+#   - bearerAuth: []

@@ -1,0 +1,163 @@
+# OpenAPI Multi-Version Support Example
+# This demonstrates versioning with OpenAPI specs for different API versions
+
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+
+  backend:
+    http:
+      maxIdleConns: 100
+      dialTimeout: 10
+      responseHeaderTimeout: 10
+
+  # API Versioning Configuration
+  versioning:
+    enabled: true
+    strategy: accept       # Use Accept header versioning
+    defaultVersion: "1.0"
+    acceptPattern: 'version=(\d+(?:\.\d+)?)'  # Extract version from Accept header
+    
+    # Version mappings
+    versionMappings:
+      "1.0":
+        service: "api-v1"
+      "2.0":
+        service: "api-v2"
+      "3.0":
+        service: "api-v3"
+
+  # OpenAPI configuration with version-specific specs
+  openapi:
+    enabled: true
+    # Load different OpenAPI specs for each version
+    specs:
+      - name: "api-v1"
+        path: "/specs/openapi-v1.yaml"
+        version: "1.0"
+        backend: "api-v1"
+      - name: "api-v2"
+        path: "/specs/openapi-v2.yaml"
+        version: "2.0"
+        backend: "api-v2"
+      - name: "api-v3"
+        path: "/specs/openapi-v3.yaml"
+        version: "3.0"
+        backend: "api-v3"
+    
+    # Enable hot reload for spec changes
+    hotReload: true
+    hotReloadInterval: 30
+
+  # Service registry
+  registry:
+    type: static
+    static:
+      services:
+        # API v1 service
+        - name: api-v1
+          instances:
+            - id: api-v1-1
+              address: "127.0.0.1"
+              port: 8081
+              health: healthy
+        
+        # API v2 service
+        - name: api-v2
+          instances:
+            - id: api-v2-1
+              address: "127.0.0.1"
+              port: 8082
+              health: healthy
+        
+        # API v3 service
+        - name: api-v3
+          instances:
+            - id: api-v3-1
+              address: "127.0.0.1"
+              port: 8083
+              health: healthy
+
+  # Routes will be dynamically generated from OpenAPI specs
+  router:
+    rules:
+      # Health check (no versioning)
+      - id: health
+        path: /health
+        serviceName: api-v1
+        timeout: 10
+
+# OpenAPI Spec Examples:
+#
+# openapi-v1.yaml:
+# openapi: 3.0.0
+# info:
+#   title: API v1
+#   version: 1.0.0
+# paths:
+#   /users:
+#     get:
+#       operationId: getUsers
+#       responses:
+#         200:
+#           description: List of users
+#           content:
+#             application/json:
+#               schema:
+#                 type: array
+#                 items:
+#                   type: object
+#                   properties:
+#                     user_id:    # v1 uses snake_case
+#                       type: string
+#                     user_name:
+#                       type: string
+#
+# openapi-v2.yaml:
+# openapi: 3.0.0
+# info:
+#   title: API v2
+#   version: 2.0.0
+# paths:
+#   /users:
+#     get:
+#       operationId: getUsers
+#       responses:
+#         200:
+#           description: List of users
+#           content:
+#             application/json:
+#               schema:
+#                 type: array
+#                 items:
+#                   type: object
+#                   properties:
+#                     userId:     # v2 uses camelCase
+#                       type: string
+#                     userName:
+#                       type: string
+#                     email:      # v2 adds email field
+#                       type: string
+#
+# Usage Examples:
+#
+# 1. Version 1 (snake_case response):
+#    curl -H "Accept: application/json;version=1.0" \
+#      http://localhost:8080/users
+#
+# 2. Version 2 (camelCase response):
+#    curl -H "Accept: application/json;version=2.0" \
+#      http://localhost:8080/users
+#
+# 3. Version 3 (latest features):
+#    curl -H "Accept: application/json;version=3.0" \
+#      http://localhost:8080/users
+#
+# Benefits:
+# - Contract-first development with OpenAPI
+# - Automatic route generation per version
+# - Schema validation per version
+# - Documentation generation per version
+# - Backward compatibility maintenance

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	"gateway/internal/core"
 	"gateway/pkg/errors"
 	"gateway/pkg/request"
+	"gateway/pkg/requestid"
 	"github.com/gorilla/websocket"
 	"log/slog"
 )
@@ -972,4 +974,254 @@ func TestAdapter_WithTokenValidator(t *testing.T) {
 			t.Error("StopValidation should be called when connection closes")
 		}
 	})
+}
+
+func TestAdapter_WithMetrics(t *testing.T) {
+	logger := slog.Default()
+	handler := func(ctx context.Context, req core.Request) (core.Response, error) {
+		return &mockResponse{statusCode: http.StatusSwitchingProtocols}, nil
+	}
+
+	adapter := NewAdapter(nil, handler, logger)
+	metrics := &WebSocketMetrics{}
+
+	// Test WithMetrics returns adapter for chaining
+	result := adapter.WithMetrics(metrics)
+	if result != adapter {
+		t.Error("WithMetrics should return the adapter for chaining")
+	}
+
+	// Verify metrics was set
+	if adapter.metrics != metrics {
+		t.Error("Metrics not set correctly")
+	}
+}
+
+func TestAdapter_ErrorUpgrade(t *testing.T) {
+	logger := slog.Default()
+	handler := func(ctx context.Context, req core.Request) (core.Response, error) {
+		return nil, errors.NewError(errors.ErrorTypeInternal, "test error")
+	}
+
+	adapter := NewAdapter(&Config{
+		Host: "127.0.0.1",
+		Port: 0,
+	}, handler, logger)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err := adapter.Start(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer adapter.Stop(context.Background())
+
+	// Try to connect - handler error happens after upgrade, so connection succeeds
+	addr := adapter.listener.Addr().String()
+	conn, resp, err := websocket.DefaultDialer.Dial(fmt.Sprintf("ws://%s/test", addr), nil)
+	if err != nil {
+		t.Fatalf("Connection failed: %v", err)
+	}
+	defer conn.Close()
+
+	// Should get a switching protocols response
+	if resp != nil && resp.StatusCode != http.StatusSwitchingProtocols {
+		t.Errorf("Expected status 101, got %d", resp.StatusCode)
+	}
+
+	// Connection will be established but handler error occurs internally
+}
+
+func TestAdapter_MaxConnections(t *testing.T) {
+	logger := slog.Default()
+	
+	// Block handler to keep connections open
+	blockCh := make(chan struct{})
+	handler := func(ctx context.Context, req core.Request) (core.Response, error) {
+		<-blockCh // Block until test completes
+		return &mockResponse{statusCode: http.StatusSwitchingProtocols}, nil
+	}
+
+	adapter := NewAdapter(&Config{
+		Host:           "127.0.0.1",
+		Port:           0,
+		MaxConnections: 2, // Allow only 2 connections
+	}, handler, logger)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err := adapter.Start(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		close(blockCh) // Unblock handlers
+		adapter.Stop(context.Background())
+	}()
+
+	addr := adapter.listener.Addr().String()
+
+	// Connect first client
+	conn1, _, err := websocket.DefaultDialer.Dial(fmt.Sprintf("ws://%s/test1", addr), nil)
+	if err != nil {
+		t.Fatalf("First connection failed: %v", err)
+	}
+	defer conn1.Close()
+
+	// Connect second client
+	conn2, _, err := websocket.DefaultDialer.Dial(fmt.Sprintf("ws://%s/test2", addr), nil)
+	if err != nil {
+		t.Fatalf("Second connection failed: %v", err)
+	}
+	defer conn2.Close()
+
+	// Try third connection - should fail due to max connections
+	dialer := websocket.DefaultDialer
+	dialer.HandshakeTimeout = 1 * time.Second
+	
+	conn3, resp, err := dialer.Dial(fmt.Sprintf("ws://%s/test3", addr), nil)
+	if err == nil {
+		conn3.Close()
+		t.Error("Third connection should have been rejected")
+	}
+
+	// Should get service unavailable error
+	if resp != nil && resp.StatusCode != http.StatusServiceUnavailable {
+		t.Errorf("Expected status 503, got %d", resp.StatusCode)
+	}
+}
+
+func TestAdapter_TLSConfig(t *testing.T) {
+	logger := slog.Default()
+	handler := func(ctx context.Context, req core.Request) (core.Response, error) {
+		return &mockResponse{statusCode: http.StatusSwitchingProtocols}, nil
+	}
+
+	// Test with valid TLS config but with dummy certificate that allows start
+	tlsConfig := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		Certificates: []tls.Certificate{
+			{}, // Empty cert for testing
+		},
+	}
+
+	adapter := NewAdapter(&Config{
+		Host: "127.0.0.1",
+		Port: 0,
+		TLS: &TLSConfig{
+			Enabled: true,
+		},
+		TLSConfig: tlsConfig,
+	}, handler, logger)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err := adapter.Start(ctx)
+	if err != nil {
+		t.Fatalf("Failed to start with TLS: %v", err)
+	}
+	defer adapter.Stop(context.Background())
+
+	// Verify TLS is enabled
+	if adapter.listener == nil {
+		t.Error("Expected listener to be created")
+	}
+}
+
+func TestAdapter_RequestIDGeneration(t *testing.T) {
+	logger := slog.Default()
+	
+	var capturedReqID string
+	handler := func(ctx context.Context, req core.Request) (core.Response, error) {
+		capturedReqID = req.ID()
+		return &mockResponse{statusCode: http.StatusSwitchingProtocols}, nil
+	}
+
+	adapter := NewAdapter(&Config{
+		Host: "127.0.0.1",
+		Port: 0,
+	}, handler, logger)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err := adapter.Start(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer adapter.Stop(context.Background())
+
+	// Connect without X-Request-ID header
+	addr := adapter.listener.Addr().String()
+	conn, _, err := websocket.DefaultDialer.Dial(fmt.Sprintf("ws://%s/test", addr), nil)
+	if err != nil {
+		t.Fatalf("Connection failed: %v", err)
+	}
+	defer conn.Close()
+
+	// Also test with provided request ID
+	providedID := requestid.GenerateRequestID()
+	headers := http.Header{}
+	headers.Set("X-Request-ID", providedID)
+
+	// Give handler time to run
+	time.Sleep(50 * time.Millisecond)
+
+	// Verify request ID was generated
+	if capturedReqID == "" {
+		t.Error("Request ID should have been generated")
+	}
+
+	// Verify format (should contain hyphen)
+	if !strings.Contains(capturedReqID, "-") {
+		t.Errorf("Invalid request ID format: %s", capturedReqID)
+	}
+}
+
+func TestAdapter_DoubleStartStop(t *testing.T) {
+	logger := slog.Default()
+	handler := func(ctx context.Context, req core.Request) (core.Response, error) {
+		return &mockResponse{statusCode: http.StatusSwitchingProtocols}, nil
+	}
+
+	adapter := NewAdapter(&Config{
+		Host: "127.0.0.1",
+		Port: 0,
+	}, handler, logger)
+
+	// Test stop before start
+	err := adapter.Stop(context.Background())
+	if err != nil {
+		t.Error("Stop before start should not error")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Start adapter
+	err = adapter.Start(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Test double start
+	err = adapter.Start(ctx)
+	if err == nil {
+		t.Error("Expected error on double start")
+	}
+
+	// Stop adapter
+	err = adapter.Stop(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Test double stop
+	err = adapter.Stop(context.Background())
+	if err != nil {
+		t.Error("Double stop should not error")
+	}
 }

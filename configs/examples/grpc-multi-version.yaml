@@ -1,0 +1,141 @@
+# gRPC Multi-Version Support Example
+# This demonstrates versioning for gRPC services with different proto versions
+
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+      enableHTTP2: true
+
+  backend:
+    grpc:
+      maxCallSendMsgSize: 4194304    # 4MB
+      maxCallRecvMsgSize: 4194304    # 4MB
+      keepAlive:
+        time: 30
+        timeout: 10
+      dialTimeout: 10
+
+  # API Versioning for gRPC services
+  versioning:
+    enabled: true
+    strategy: header        # Use header for gRPC versioning
+    defaultVersion: "1.0"
+    versionHeader: "x-api-version"
+    
+    # Version to service mappings
+    versionMappings:
+      "1.0":
+        service: "grpc-service-v1"
+      "2.0":
+        service: "grpc-service-v2"
+      "3.0":
+        service: "grpc-service-v3"
+
+  # Service registry
+  registry:
+    type: static
+    static:
+      services:
+        # gRPC v1 service (using older proto definitions)
+        - name: grpc-service-v1
+          instances:
+            - id: grpc-v1-1
+              address: "127.0.0.1"
+              port: 50051
+              health: healthy
+              protocol: grpc
+        
+        # gRPC v2 service (updated proto definitions)
+        - name: grpc-service-v2
+          instances:
+            - id: grpc-v2-1
+              address: "127.0.0.1"
+              port: 50052
+              health: healthy
+              protocol: grpc
+        
+        # gRPC v3 service (latest proto definitions)
+        - name: grpc-service-v3
+          instances:
+            - id: grpc-v3-1
+              address: "127.0.0.1"
+              port: 50053
+              health: healthy
+              protocol: grpc
+
+  # gRPC transcoding configuration
+  protocols:
+    grpc:
+      enabled: true
+      # Different descriptor files for each version
+      descriptorSources:
+        - type: file
+          paths:
+            - "/app/descriptors/api-v1.desc"  # v1 proto definitions
+            - "/app/descriptors/api-v2.desc"  # v2 proto definitions
+            - "/app/descriptors/api-v3.desc"  # v3 proto definitions
+      
+      # Service mappings per version
+      services:
+        # V1 services
+        - name: api.v1.UserService
+          backend: grpc-service-v1
+        - name: api.v1.ProductService
+          backend: grpc-service-v1
+        
+        # V2 services
+        - name: api.v2.UserService
+          backend: grpc-service-v2
+        - name: api.v2.ProductService
+          backend: grpc-service-v2
+        
+        # V3 services
+        - name: api.v3.UserService
+          backend: grpc-service-v3
+        - name: api.v3.ProductService
+          backend: grpc-service-v3
+
+  # Routing rules
+  router:
+    rules:
+      # gRPC routes with versioning
+      - id: grpc-users
+        path: /v*/users/*
+        serviceName: grpc-service-v1  # Default (overridden by versioning)
+        protocol: grpc
+        timeout: 30
+        metadata:
+          grpcService: "UserService"
+      
+      # JSON transcoding routes
+      - id: api-users
+        path: /api/users/*
+        serviceName: grpc-service-v1  # Default (overridden by versioning)
+        protocol: grpc
+        timeout: 30
+
+# Usage Examples:
+#
+# 1. gRPC with version header:
+#    grpcurl -H "x-api-version: 2.0" \
+#      -d '{"id": "123"}' \
+#      localhost:8080 \
+#      api.v2.UserService/GetUser
+#
+# 2. JSON transcoding with version header:
+#    curl -H "x-api-version: 2.0" \
+#      http://localhost:8080/api/users/123
+#
+# 3. Different versions may have different:
+#    - Field names (e.g., user_id vs userId)
+#    - Response structures
+#    - Available methods
+#    - Error codes
+#
+# Benefits:
+# - Smooth migration between proto versions
+# - Support multiple client versions simultaneously
+# - Gradual deprecation of old versions
+# - Version-specific performance optimizations

@@ -87,7 +87,7 @@ func TestRouterAddRule(t *testing.T) {
 	registry := &mockRegistry{
 		services: make(map[string][]core.ServiceInstance),
 	}
-	router := NewRouter(registry)
+	router := NewRouter(registry, nil)
 
 	tests := []struct {
 		name    string
@@ -160,7 +160,7 @@ func TestRouterRoute(t *testing.T) {
 		},
 	}
 
-	router := NewRouter(registry)
+	router := NewRouter(registry, nil)
 
 	// Add rules
 	rules := []core.RouteRule{
@@ -299,7 +299,7 @@ func TestRouterLoadBalancing(t *testing.T) {
 		},
 	}
 
-	router := NewRouter(registry)
+	router := NewRouter(registry, nil)
 
 	rule := core.RouteRule{
 		ID:          "lb-test",
@@ -343,7 +343,7 @@ func TestRouterMethodMatching(t *testing.T) {
 		},
 	}
 
-	router := NewRouter(registry)
+	router := NewRouter(registry, nil)
 
 	// Add rule with no methods (should match all)
 	rule := core.RouteRule{
@@ -392,7 +392,7 @@ func TestRouterPathConversion(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
 			// Create a new router for each test to avoid conflicts
-			router := NewRouter(nil)
+			router := NewRouter(nil, nil)
 
 			rule := core.RouteRule{
 				ID:          "test",

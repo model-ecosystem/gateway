@@ -25,6 +25,11 @@ type Gateway struct {
 	CORS             *CORS             `yaml:"cors,omitempty"`
 	Redis            *Redis            `yaml:"redis,omitempty"`
 	RateLimitStorage *RateLimitStorage `yaml:"rateLimitStorage,omitempty"`
+	Telemetry        *Telemetry        `yaml:"telemetry,omitempty"`
+	Management       *Management       `yaml:"management,omitempty"`
+	Middleware       *Middleware       `yaml:"middleware,omitempty"`
+	OpenAPI          *OpenAPIConfig    `yaml:"openapi,omitempty"`
+	Versioning       *VersioningConfig `yaml:"versioning,omitempty"`
 }
 
 // Frontend configuration
@@ -183,9 +188,10 @@ type SSEBackend struct {
 
 // Registry configuration
 type Registry struct {
-	Type   string          `yaml:"type"`
-	Static *StaticRegistry `yaml:"static,omitempty"`
-	Docker *DockerRegistry `yaml:"docker,omitempty"`
+	Type          string                   `yaml:"type"`
+	Static        *StaticRegistry          `yaml:"static,omitempty"`
+	Docker        *DockerRegistry          `yaml:"docker,omitempty"`
+	DockerCompose *DockerComposeRegistry   `yaml:"dockerCompose,omitempty"`
 }
 
 // StaticRegistry configuration
@@ -220,6 +226,19 @@ type DockerRegistry struct {
 	LabelPrefix     string `yaml:"labelPrefix"`     // Label prefix for gateway config
 	Network         string `yaml:"network"`         // Docker network to use
 	RefreshInterval int    `yaml:"refreshInterval"` // Service refresh interval in seconds
+}
+
+// DockerComposeRegistry configuration
+type DockerComposeRegistry struct {
+	// Project name to filter containers
+	ProjectName string `yaml:"projectName"`
+	// Label prefix for gateway configuration
+	LabelPrefix string `yaml:"labelPrefix"`
+	// Service refresh interval in seconds
+	RefreshInterval int `yaml:"refreshInterval"`
+	// Docker connection settings
+	DockerHost string `yaml:"dockerHost"`
+	APIVersion string `yaml:"apiVersion"`
 }
 
 // Router configuration
@@ -433,6 +452,7 @@ type RetryConfig struct {
 	MaxDelay     int     `yaml:"maxDelay"`     // Maximum delay in milliseconds
 	Multiplier   float64 `yaml:"multiplier"`   // Backoff multiplier
 	Jitter       bool    `yaml:"jitter"`       // Add jitter to delays
+	BudgetRatio  float64 `yaml:"budgetRatio"`  // Retry budget ratio (0-1, default 0.1)
 }
 
 // CORS configuration
@@ -460,6 +480,20 @@ type GRPCConfig struct {
 	EnableTranscoding bool `yaml:"enableTranscoding"`
 	// TranscodingRules defines custom transcoding rules
 	TranscodingRules map[string]string `yaml:"transcodingRules"`
+	// DynamicDescriptors configuration for loading .desc files
+	DynamicDescriptors *GRPCDescriptorConfig `yaml:"dynamicDescriptors,omitempty"`
+}
+
+// GRPCDescriptorConfig holds configuration for dynamic descriptor loading
+type GRPCDescriptorConfig struct {
+	// DescriptorFiles is a list of .desc files to load
+	DescriptorFiles []string `yaml:"files"`
+	// DescriptorDirs is a list of directories to scan for .desc files
+	DescriptorDirs []string `yaml:"directories"`
+	// AutoReload enables automatic reloading of descriptors
+	AutoReload bool `yaml:"autoReload"`
+	// ReloadInterval is the interval for checking descriptor changes (in seconds)
+	ReloadInterval int `yaml:"reloadInterval"`
 }
 
 // Redis configuration
@@ -513,4 +547,240 @@ type RateLimitStore struct {
 	Type  string `yaml:"type"` // "memory" or "redis"
 	Redis *Redis `yaml:"redis,omitempty"`
 	// Memory storage doesn't need configuration
+}
+
+// Telemetry configuration
+type Telemetry struct {
+	Enabled bool            `yaml:"enabled"`
+	Service string          `yaml:"service"` // Service name for telemetry
+	Version string          `yaml:"version"` // Service version
+	Tracing TracingConfig   `yaml:"tracing"`
+	Metrics TelemetryMetrics `yaml:"metrics"`
+}
+
+// TracingConfig holds tracing configuration
+type TracingConfig struct {
+	Enabled      bool              `yaml:"enabled"`
+	Endpoint     string            `yaml:"endpoint"`     // OTLP endpoint (e.g., localhost:4318)
+	Headers      map[string]string `yaml:"headers"`      // Additional headers for OTLP
+	SampleRate   float64           `yaml:"sampleRate"`   // Sampling rate (0-1)
+	MaxBatchSize int               `yaml:"maxBatchSize"` // Max batch size for export
+	BatchTimeout int               `yaml:"batchTimeout"` // Batch timeout in seconds
+}
+
+// TelemetryMetrics configuration (for OpenTelemetry metrics)
+type TelemetryMetrics struct {
+	Enabled bool `yaml:"enabled"`
+	// Additional OTEL metrics configuration can be added here
+}
+
+// Management configuration for runtime management API
+type Management struct {
+	Enabled  bool              `yaml:"enabled"`
+	Host     string            `yaml:"host"`
+	Port     int               `yaml:"port"`
+	BasePath string            `yaml:"basePath"`
+	Auth     *ManagementAuth   `yaml:"auth,omitempty"`
+}
+
+// ManagementAuth configuration
+type ManagementAuth struct {
+	Type  string            `yaml:"type"`  // "basic", "token"
+	Token string            `yaml:"token"` // For token auth
+	Users map[string]string `yaml:"users"` // For basic auth: username -> password
+}
+
+// Middleware configuration
+type Middleware struct {
+	Auth      *MiddlewareAuth      `yaml:"auth,omitempty"`
+	Authz     *MiddlewareAuthz     `yaml:"authz,omitempty"`
+	Transform *TransformConfig     `yaml:"transform,omitempty"`
+}
+
+// MiddlewareAuth configuration
+type MiddlewareAuth struct {
+	OAuth2 *OAuth2Config `yaml:"oauth2,omitempty"`
+}
+
+// MiddlewareAuthz configuration  
+type MiddlewareAuthz struct {
+	RBAC *RBACConfig `yaml:"rbac,omitempty"`
+}
+
+// OAuth2Config represents OAuth2/OIDC configuration
+type OAuth2Config struct {
+	Enabled         bool               `yaml:"enabled"`
+	TokenHeader     string             `yaml:"tokenHeader"`
+	TokenQuery      string             `yaml:"tokenQuery"`
+	TokenCookie     string             `yaml:"tokenCookie"`
+	BearerPrefix    string             `yaml:"bearerPrefix"`
+	RequireScopes   []string           `yaml:"requireScopes"`
+	RequireAudience []string           `yaml:"requireAudience"`
+	ClaimsKey       string             `yaml:"claimsKey"`
+	Providers       []OAuth2Provider   `yaml:"providers"`
+}
+
+// OAuth2Provider represents an OAuth2/OIDC provider configuration
+type OAuth2Provider struct {
+	Name             string            `yaml:"name"`
+	ClientID         string            `yaml:"clientId"`
+	ClientSecret     string            `yaml:"clientSecret"`
+	AuthorizationURL string            `yaml:"authorizationUrl"`
+	TokenURL         string            `yaml:"tokenUrl"`
+	UserInfoURL      string            `yaml:"userInfoUrl"`
+	JWKSEndpoint     string            `yaml:"jwksEndpoint"`
+	IssuerURL        string            `yaml:"issuerUrl"`
+	DiscoveryURL     string            `yaml:"discoveryUrl"`
+	UseDiscovery     bool              `yaml:"useDiscovery"`
+	ValidateIssuer   bool              `yaml:"validateIssuer"`
+	ValidateAudience bool              `yaml:"validateAudience"`
+	Audience         []string          `yaml:"audience"`
+	Scopes           []string          `yaml:"scopes"`
+	ClaimsMapping    map[string]string `yaml:"claimsMapping"`
+}
+
+// RBACConfig represents RBAC configuration
+type RBACConfig struct {
+	Enabled              bool          `yaml:"enabled"`
+	EnforcementMode      string        `yaml:"enforcementMode"`
+	DefaultAllow         bool          `yaml:"defaultAllow"`
+	SubjectKey           string        `yaml:"subjectKey"`
+	SkipPaths            []string      `yaml:"skipPaths"`
+	CacheSize            int           `yaml:"cacheSize"`
+	CacheTTL             int           `yaml:"cacheTTL"` // seconds
+	PolicyRefreshInterval int          `yaml:"policyRefreshInterval"`
+	Policies             []RBACPolicy  `yaml:"policies"`
+}
+
+// RBACPolicy represents an RBAC policy
+type RBACPolicy struct {
+	Name        string                      `yaml:"name"`
+	Description string                      `yaml:"description"`
+	Roles       map[string]RBACRole         `yaml:"roles"`
+	Bindings    map[string][]string         `yaml:"bindings"`
+}
+
+// RBACRole represents an RBAC role
+type RBACRole struct {
+	Name        string            `yaml:"name"`
+	Description string            `yaml:"description"`
+	Permissions []string          `yaml:"permissions"`
+	Inherits    []string          `yaml:"inherits"`
+	Metadata    map[string]string `yaml:"metadata"`
+}
+
+// OpenAPIConfig represents OpenAPI configuration
+type OpenAPIConfig struct {
+	Enabled         bool                     `yaml:"enabled"`
+	SpecsDirectory  string                   `yaml:"specsDirectory"`
+	SpecURLs        []string                 `yaml:"specUrls"`
+	DefaultService  string                   `yaml:"defaultService"`
+	ReloadInterval  int                      `yaml:"reloadInterval"` // seconds
+	WatchFiles      bool                     `yaml:"watchFiles"`
+	ServiceMappings map[string]string        `yaml:"serviceMappings"`
+	Descriptors     *OpenAPIDescriptorConfig `yaml:"descriptors,omitempty"`
+	Manager         *OpenAPIManagerConfig    `yaml:"manager,omitempty"`
+}
+
+// OpenAPIDescriptorConfig holds configuration for dynamic OpenAPI descriptor loading
+type OpenAPIDescriptorConfig struct {
+	SpecFiles      []string      `yaml:"specFiles"`
+	SpecDirs       []string      `yaml:"specDirs"`
+	SpecURLs       []string      `yaml:"specUrls"`
+	AutoReload     bool          `yaml:"autoReload"`
+	ReloadInterval time.Duration `yaml:"reloadInterval"`
+	FailOnError    bool          `yaml:"failOnError"`
+	FileExtensions []string      `yaml:"fileExtensions"`
+	DefaultService string        `yaml:"defaultService"`
+}
+
+// OpenAPIManagerConfig holds configuration for the OpenAPI manager
+type OpenAPIManagerConfig struct {
+	UpdateStrategy     string            `yaml:"updateStrategy"`     // merge, replace, append
+	ConflictResolution string            `yaml:"conflictResolution"` // newest, error, skip
+	RoutePrefix        string            `yaml:"routePrefix"`
+	RouteGeneration    *RouteGeneration  `yaml:"routeGeneration"`
+}
+
+// RouteGeneration holds route generation options
+type RouteGeneration struct {
+	IncludeOptions       bool   `yaml:"includeOptions"`
+	IncludeCORS          bool   `yaml:"includeCORS"`
+	PathStyle            string `yaml:"pathStyle"` // exact, prefix, wildcard
+	OperationIDAsRouteID bool   `yaml:"operationIdAsRouteId"`
+}
+
+// TransformConfig represents transformation middleware configuration
+type TransformConfig struct {
+	Enabled            bool                             `yaml:"enabled"`
+	RequestTransforms  map[string]TransformRule         `yaml:"request"`
+	ResponseTransforms map[string]TransformRule         `yaml:"response"`
+	GlobalRequest      *TransformRule                   `yaml:"globalRequest"`
+	GlobalResponse     *TransformRule                   `yaml:"globalResponse"`
+}
+
+// TransformRule represents a transformation rule
+type TransformRule struct {
+	Headers    *HeaderTransform    `yaml:"headers"`
+	Body       *BodyTransform      `yaml:"body"`
+	Conditions []TransformCondition `yaml:"conditions"`
+}
+
+// HeaderTransform represents header transformations
+type HeaderTransform struct {
+	Add    map[string]string `yaml:"add"`
+	Remove []string          `yaml:"remove"`
+	Rename map[string]string `yaml:"rename"`
+	Modify map[string]string `yaml:"modify"`
+}
+
+// BodyTransform represents body transformations
+type BodyTransform struct {
+	Operations []TransformOperation `yaml:"operations"`
+	Format     string               `yaml:"format"`
+}
+
+// TransformOperation represents a transformation operation
+type TransformOperation struct {
+	Type   string      `yaml:"type"`
+	Path   string      `yaml:"path"`
+	Value  interface{} `yaml:"value"`
+	From   string      `yaml:"from"`
+	To     string      `yaml:"to"`
+	Script string      `yaml:"script"`
+}
+
+// TransformCondition represents a transformation condition
+type TransformCondition struct {
+	Header      string `yaml:"header"`
+	Value       string `yaml:"value"`
+	ContentType string `yaml:"contentType"`
+	Method      string `yaml:"method"`
+}
+
+// VersioningConfig represents API versioning configuration
+type VersioningConfig struct {
+	Enabled            bool                               `yaml:"enabled"`
+	Strategy           string                             `yaml:"strategy"`           // path, header, query, accept
+	DefaultVersion     string                             `yaml:"defaultVersion"`
+	VersionHeader      string                             `yaml:"versionHeader"`      // For header strategy
+	VersionQuery       string                             `yaml:"versionQuery"`       // For query strategy
+	AcceptPattern      string                             `yaml:"acceptPattern"`      // For accept strategy
+	DeprecatedVersions map[string]*DeprecationInfo        `yaml:"deprecatedVersions"`
+	VersionMappings    map[string]*VersionMapping         `yaml:"versionMappings"`
+}
+
+// DeprecationInfo represents deprecation details for a version
+type DeprecationInfo struct {
+	Message     string `yaml:"message"`
+	SunsetDate  string `yaml:"sunsetDate"`
+	RemovalDate string `yaml:"removalDate"`
+}
+
+// VersionMapping represents version-specific configuration
+type VersionMapping struct {
+	Service         string                 `yaml:"service"`
+	PathPrefix      string                 `yaml:"pathPrefix"`
+	Transformations map[string]interface{} `yaml:"transformations"`
+	Deprecated      bool                   `yaml:"deprecated"`
 }

@@ -6,6 +6,7 @@ import (
 	"gateway/internal/core"
 	"gateway/pkg/errors"
 	"gateway/pkg/routing"
+	"log/slog"
 	"net/http"
 	"sync"
 )
@@ -16,14 +17,19 @@ type Router struct {
 	registry  core.ServiceRegistry
 	routes    map[string]*core.RouteRule // pattern -> rule mapping
 	mu        sync.RWMutex
+	logger    *slog.Logger
 }
 
 // NewRouter creates a new router
-func NewRouter(registry core.ServiceRegistry) *Router {
+func NewRouter(registry core.ServiceRegistry, logger *slog.Logger) *Router {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return &Router{
 		mux:       http.NewServeMux(),
 		registry:  registry,
 		routes:    make(map[string]*core.RouteRule),
+		logger:    logger.With("component", "router"),
 	}
 }
 
@@ -74,6 +80,18 @@ func (r *Router) AddRule(rule core.RouteRule) error {
 		// Use sticky session with round-robin fallback
 		fallback := NewRoundRobinBalancer()
 		rule.Balancer = NewStickySessionBalancer(fallback, rule.SessionAffinity)
+	case core.LoadBalanceWeightedRoundRobin:
+		rule.Balancer = NewWeightedRoundRobinBalancer()
+	case core.LoadBalanceWeightedRandom:
+		rule.Balancer = NewWeightedRandomBalancer()
+	case core.LoadBalanceLeastConnections:
+		rule.Balancer = NewLeastConnectionsBalancer()
+	case core.LoadBalanceResponseTime:
+		rule.Balancer = NewResponseTimeBalancer()
+	case core.LoadBalanceAdaptive:
+		rule.Balancer = NewAdaptiveBalancer()
+	case core.LoadBalanceConsistentHash:
+		rule.Balancer = NewConsistentHashBalancer(150) // Default 150 virtual nodes
 	default:
 		rule.Balancer = NewRoundRobinBalancer()
 	}
@@ -122,11 +140,20 @@ func (r *Router) Route(ctx context.Context, req core.Request) (*core.RouteResult
 			WithDetail("path", req.Path())
 	}
 
+	// Check for version-based service override
+	serviceName := matched.ServiceName
+	if serviceOverride := getServiceOverrideFromContext(ctx); serviceOverride != "" {
+		serviceName = serviceOverride
+		r.logger.Debug("Using version-specific service", 
+			"original", matched.ServiceName,
+			"override", serviceName)
+	}
+
 	// Get instances
-	instances, err := r.registry.GetService(matched.ServiceName)
+	instances, err := r.registry.GetService(serviceName)
 	if err != nil {
 		return nil, errors.NewError(errors.ErrorTypeNotFound, "service not found").
-			WithDetail("service", matched.ServiceName).
+			WithDetail("service", serviceName).
 			WithCause(err)
 	}
 
@@ -155,9 +182,18 @@ func (r *Router) Route(ctx context.Context, req core.Request) (*core.RouteResult
 	}
 
 	return &core.RouteResult{
-		Instance: instance,
-		Rule:     matched,
+		Instance:    instance,
+		Rule:        matched,
+		ServiceName: serviceName,
 	}, nil
+}
+
+// getServiceOverrideFromContext extracts service override from context
+func getServiceOverrideFromContext(ctx context.Context) string {
+	if service, ok := ctx.Value("version.service").(string); ok {
+		return service
+	}
+	return ""
 }
 
 // matchMethod is still needed for method validation
@@ -173,6 +209,25 @@ func matchMethod(methods []string, method string) bool {
 		}
 	}
 	return false
+}
+
+// GetRoutes returns all configured routes
+func (r *Router) GetRoutes() []core.RouteRule {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	routes := make([]core.RouteRule, 0, len(r.routes))
+	seen := make(map[string]bool)
+	
+	for _, rule := range r.routes {
+		// Avoid duplicates (same route might be registered for multiple methods)
+		if !seen[rule.ID] {
+			routes = append(routes, *rule)
+			seen[rule.ID] = true
+		}
+	}
+	
+	return routes
 }
 
 // Close cleans up the router resources

@@ -1,0 +1,89 @@
+# Docker Compose Service Discovery Configuration
+# This demonstrates how to discover services from Docker Compose environments
+
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+      readTimeout: 30
+      writeTimeout: 30
+
+  backend:
+    http:
+      maxIdleConns: 100
+      maxIdleConnsPerHost: 10
+      idleConnTimeout: 90
+      keepAlive: true
+      keepAliveTimeout: 30
+      dialTimeout: 10
+      responseHeaderTimeout: 10
+
+  # Service registry configuration for Docker Compose
+  registry:
+    type: docker-compose
+    dockerCompose:
+      # Docker Compose project name to filter (optional)
+      # If not specified, will discover from all compose projects
+      projectName: "myapp"
+      
+      # Label prefix for gateway configuration
+      labelPrefix: "gateway"
+      
+      # Service refresh interval in seconds
+      refreshInterval: 10
+      
+      # Docker connection settings (optional)
+      # dockerHost: "tcp://localhost:2375"
+      # apiVersion: "1.41"
+
+  router:
+    rules:
+      # Routes should be configured here or via Management API
+      # Services will be discovered from Docker Compose containers
+      - id: api-route
+        path: /api/*
+        serviceName: api  # Maps to compose service name
+        loadBalance: round_robin
+        timeout: 30
+
+# Docker Compose service example:
+# version: '3.8'
+# services:
+#   api:
+#     image: myapp/api:latest
+#     labels:
+#       # Enable gateway discovery
+#       gateway.enable: "true"
+#       # Specify the internal port
+#       gateway.port: "3000"
+#       # Optional: override scheme (default: http)
+#       gateway.scheme: "http"
+#       # Optional: add custom metadata
+#       gateway.version: "v1"
+#       gateway.region: "us-east-1"
+#   
+#   web:
+#     image: myapp/web:latest
+#     labels:
+#       gateway.enable: "true"
+#       gateway.port: "80"
+#       gateway.scheme: "http"
+#   
+#   # Service without gateway labels won't be discovered
+#   database:
+#     image: postgres:13
+#     environment:
+#       POSTGRES_DB: myapp
+
+# Usage:
+# 1. Start your Docker Compose project:
+#    docker-compose up -d
+#
+# 2. Start the gateway with this config:
+#    ./gateway -config configs/examples/docker-compose.yaml
+#
+# 3. The gateway will automatically discover services from your compose project
+#
+# 4. Access services through the gateway:
+#    curl http://localhost:8080/api/users

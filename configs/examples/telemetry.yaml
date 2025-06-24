@@ -1,0 +1,62 @@
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+      readTimeout: 30
+      writeTimeout: 30
+
+  backend:
+    http:
+      maxIdleConns: 100
+      maxIdleConnsPerHost: 10
+      idleConnTimeout: 90
+
+  registry:
+    type: static
+    static:
+      services:
+        - name: backend-service
+          instances:
+            - id: backend-1
+              address: "localhost"
+              port: 3000
+              health: healthy
+
+  router:
+    rules:
+      - id: backend-route
+        path: /api/*
+        serviceName: backend-service
+        loadBalance: round_robin
+
+  # OpenTelemetry configuration
+  telemetry:
+    enabled: true
+    service: gateway
+    version: 1.0.0
+    
+    # Distributed tracing configuration
+    tracing:
+      enabled: true
+      # OTLP HTTP endpoint (e.g., Jaeger, Tempo, etc.)
+      endpoint: "localhost:4318"
+      # Additional headers for authentication
+      headers:
+        # api-key: "your-api-key"
+      # Sampling rate (0-1, where 1 = 100% sampling)
+      sampleRate: 1.0
+      # Batch export settings
+      maxBatchSize: 512
+      batchTimeout: 5  # seconds
+    
+    # Metrics configuration (uses Prometheus exporter)
+    metrics:
+      enabled: true
+      # Metrics are exposed via the standard /metrics endpoint
+
+  # Standard Prometheus metrics endpoint
+  metrics:
+    enabled: true
+    path: /metrics
+    port: 0  # Use same port as main server

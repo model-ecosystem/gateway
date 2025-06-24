@@ -16,7 +16,7 @@ func BenchmarkRouterRoute(b *testing.B) {
 		},
 	}
 
-	router := NewRouter(registry)
+	router := NewRouter(registry, nil)
 
 	// Add many routes to test performance
 	for i := 0; i < 1000; i++ {
@@ -56,7 +56,7 @@ func BenchmarkRouterRouteWithParams(b *testing.B) {
 		},
 	}
 
-	router := NewRouter(registry)
+	router := NewRouter(registry, nil)
 
 	// Add routes with parameters
 	rules := []core.RouteRule{
@@ -137,7 +137,7 @@ func BenchmarkRouterAddRule(b *testing.B) {
 	b.Run("AddRules", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
-			router := NewRouter(registry)
+			router := NewRouter(registry, nil)
 			b.StartTimer()
 
 			for j := 0; j < 100; j++ {
@@ -164,7 +164,7 @@ func BenchmarkRouterConcurrentRoute(b *testing.B) {
 		},
 	}
 
-	router := NewRouter(registry)
+	router := NewRouter(registry, nil)
 
 	// Add some routes
 	for i := 0; i < 10; i++ {

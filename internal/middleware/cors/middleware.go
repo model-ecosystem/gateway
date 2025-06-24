@@ -10,7 +10,9 @@ import (
 
 // Middleware creates CORS middleware for the gateway
 func Middleware(config Config) core.Middleware {
-	cors := New(config)
+	// Validate and create CORS instance
+	config.Validate()
+	cors := newCORS(config)
 
 	return func(next core.Handler) core.Handler {
 		return func(ctx context.Context, req core.Request) (core.Response, error) {

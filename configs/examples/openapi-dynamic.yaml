@@ -1,0 +1,174 @@
+# OpenAPI Dynamic Protocol Loading Example
+# This example shows how to load OpenAPI specifications dynamically
+# to automatically generate and update gateway routes
+
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+
+  # OpenAPI Dynamic Loading Configuration
+  openapi:
+    enabled: true
+    
+    # Dynamic descriptor loading (similar to gRPC descriptors)
+    descriptors:
+      # Individual OpenAPI spec files to load
+      specFiles:
+        - "./specs/user-api.yaml"
+        - "./specs/product-api.json"
+        - "./specs/order-api-v2.yaml"
+      
+      # Directories to scan for OpenAPI specs
+      specDirs:
+        - "./api-specs/"        # Scans for .yaml, .yml, .json files
+        - "./services/specs/"
+      
+      # URLs to fetch OpenAPI specs from
+      specUrls:
+        - "https://api.example.com/openapi.json"
+        - "https://partner-api.com/v2/openapi.yaml"
+      
+      # Automatic reloading configuration
+      autoReload: true          # Enable auto-reload on file changes
+      reloadInterval: 30s       # Check URLs every 30 seconds
+      
+      # Error handling
+      failOnError: false        # Continue if some specs fail to load
+      
+      # File extensions to consider as OpenAPI specs
+      fileExtensions:
+        - ".yaml"
+        - ".yml" 
+        - ".json"
+        - ".openapi"            # Custom extension
+      
+      # Default service name for routes without explicit service
+      defaultService: "api-backend"
+    
+    # Manager configuration for dynamic updates
+    manager:
+      updateStrategy: "merge"    # merge, replace, append
+      conflictResolution: "newest" # newest, error, skip
+      routePrefix: "/api"        # Prefix for all OpenAPI routes
+      
+      # Route generation options
+      routeGeneration:
+        includeOptions: true     # Generate OPTIONS routes
+        includeCORS: true        # Add CORS headers
+        pathStyle: "exact"       # exact, prefix, wildcard
+        operationIdAsRouteId: true # Use operationId as route ID
+
+  # Service registry (where OpenAPI routes point to)
+  registry:
+    type: static
+    static:
+      services:
+        # Default backend service
+        - name: api-backend
+          instances:
+            - id: backend-1
+              address: "api.internal"
+              port: 8080
+              health: healthy
+            - id: backend-2
+              address: "api-replica.internal"
+              port: 8080
+              health: healthy
+        
+        # Service-specific backends (can be referenced in OpenAPI specs)
+        - name: user-service
+          instances:
+            - id: user-1
+              address: "users.internal"
+              port: 8081
+              health: healthy
+        
+        - name: product-service
+          instances:
+            - id: product-1
+              address: "products.internal"
+              port: 8082
+              health: healthy
+
+  # Router configuration
+  router:
+    # Static routes (always available)
+    rules:
+      - id: health
+        path: /health
+        serviceName: api-backend
+        timeout: 10
+      
+      - id: metrics
+        path: /metrics
+        serviceName: api-backend
+        timeout: 10
+    
+    # Dynamic routes will be added from OpenAPI specs
+
+# Example OpenAPI spec with gateway extensions:
+# ---
+# openapi: 3.0.0
+# info:
+#   title: User API
+#   version: 1.0.0
+# 
+# x-gateway-service: user-service    # Gateway extension for service routing
+# 
+# paths:
+#   /users:
+#     get:
+#       summary: List users
+#       operationId: listUsers
+#       x-gateway-config:             # Gateway-specific config
+#         timeout: 30
+#         rateLimit: 100
+#         authRequired: true
+#       responses:
+#         '200':
+#           description: User list
+#   
+#   /users/{userId}:
+#     get:
+#       summary: Get user by ID
+#       operationId: getUser
+#       parameters:
+#         - name: userId
+#           in: path
+#           required: true
+#           schema:
+#             type: string
+#       x-gateway-config:
+#         timeout: 15
+#         cache: 300                  # Cache for 5 minutes
+#       responses:
+#         '200':
+#           description: User details
+
+# Benefits of OpenAPI Dynamic Loading:
+# 1. Automatic route generation from API specifications
+# 2. Hot-reload when specs change (development)
+# 3. Centralized API documentation and routing
+# 4. Support for remote spec URLs (microservices)
+# 5. Consistent with gRPC descriptor loading pattern
+# 6. No manual route configuration needed
+
+# How it works:
+# 1. Gateway loads OpenAPI specs from files, directories, and URLs
+# 2. Parses specs and generates route rules
+# 3. Routes are added to the gateway dynamically
+# 4. File watching detects changes and reloads
+# 5. URL specs are periodically refreshed
+# 6. Routes can be added/removed at runtime via Management API
+
+# Management API Integration:
+# POST /management/openapi/specs
+#   - Add new spec file or URL
+# DELETE /management/openapi/specs/{specId}
+#   - Remove spec and its routes
+# GET /management/openapi/specs
+#   - List all loaded specs
+# GET /management/openapi/routes
+#   - List all generated routes

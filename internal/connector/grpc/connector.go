@@ -44,11 +44,12 @@ type Config struct {
 
 // Connector implements gRPC backend connector
 type Connector struct {
-	config     *Config
-	logger     *slog.Logger
-	clients    map[string]*grpc.ClientConn
-	clientsMu  sync.RWMutex
-	transcoder *Transcoder
+	config             *Config
+	logger             *slog.Logger
+	clients            map[string]*grpc.ClientConn
+	clientsMu          sync.RWMutex
+	transcoder         *Transcoder
+	descriptorManager  *DescriptorManager
 }
 
 // New creates a new gRPC connector
@@ -72,6 +73,26 @@ func New(cfg *Config, logger *slog.Logger) *Connector {
 func (c *Connector) WithTranscoder(transcoder *Transcoder) *Connector {
 	c.transcoder = transcoder
 	return c
+}
+
+// WithDescriptorConfig configures descriptor loading
+func (c *Connector) WithDescriptorConfig(config DescriptorConfig) *Connector {
+	registry := c.transcoder.GetRegistry()
+	if registry == nil {
+		registry = NewProtoRegistry()
+		c.transcoder.SetRegistry(registry)
+	}
+	
+	c.descriptorManager = NewDescriptorManager(config, registry, c.logger)
+	return c
+}
+
+// StartDescriptorManager starts the descriptor manager
+func (c *Connector) StartDescriptorManager() error {
+	if c.descriptorManager != nil {
+		return c.descriptorManager.Start()
+	}
+	return nil
 }
 
 // Type returns the connector type
@@ -98,6 +119,24 @@ func (c *Connector) Forward(ctx context.Context, req core.Request, route *core.R
 						"error", err,
 						"service", cfg.Service,
 					)
+				}
+				
+				// Configure dynamic descriptor loading if specified
+				if cfg.DynamicDescriptors != nil && c.descriptorManager == nil {
+					descriptorConfig := DescriptorConfig{
+						DescriptorFiles: cfg.DynamicDescriptors.DescriptorFiles,
+						DescriptorDirs:  cfg.DynamicDescriptors.DescriptorDirs,
+						AutoReload:      cfg.DynamicDescriptors.AutoReload,
+						ReloadInterval:  time.Duration(cfg.DynamicDescriptors.ReloadInterval) * time.Second,
+						FailOnError:     false,
+					}
+					c.WithDescriptorConfig(descriptorConfig)
+					if err := c.StartDescriptorManager(); err != nil {
+						c.logger.Warn("failed to start descriptor manager",
+							"error", err,
+							"service", cfg.Service,
+						)
+					}
 				}
 			}
 		}
@@ -272,6 +311,11 @@ func (c *Connector) handleGRPCError(err error) error {
 
 // Close closes all gRPC connections
 func (c *Connector) Close() error {
+	// Stop descriptor manager if running
+	if c.descriptorManager != nil {
+		c.descriptorManager.Stop()
+	}
+
 	c.clientsMu.Lock()
 	defer c.clientsMu.Unlock()
 

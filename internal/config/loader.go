@@ -99,3 +99,9 @@ func (l *Loader) validate(cfg *Config) error {
 
 	return nil
 }
+
+// Load is a convenience function that loads configuration from a file
+func Load(path string) (*Config, error) {
+	loader := NewLoader(path)
+	return loader.Load()
+}

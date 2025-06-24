@@ -1,0 +1,41 @@
+@startuml gateway-architecture
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title API Gateway - Container Diagram
+
+Person(client, "Client", "Browser, Mobile App, or Service")
+
+System_Boundary(gateway, "API Gateway") {
+    Container(adapter, "Protocol Adapter", "Go", "Handles HTTP/WebSocket/SSE protocols")
+    Container(auth, "Auth Middleware", "Go", "JWT/API Key validation")
+    Container(ratelimit, "Rate Limiter", "Go", "Token bucket algorithm")
+    Container(router, "Router", "Go", "Path-based routing")
+    Container(lb, "Load Balancer", "Go", "Round-robin distribution")
+    Container(connector, "Backend Connector", "Go", "HTTP/gRPC/WS/SSE proxy")
+    
+    ContainerDb(config, "Configuration", "YAML", "Static route and service config")
+    Container(registry, "Service Registry", "Go", "Static/Docker discovery")
+}
+
+System_Ext(services, "Upstream Services", "Microservices, APIs")
+System_Ext(docker, "Docker Engine", "Container runtime")
+
+' Data flow
+Rel(client, adapter, "Sends requests", "HTTP/WS/SSE")
+Rel(adapter, auth, "Forwards to pipeline")
+Rel(auth, ratelimit, "Authenticated requests")
+Rel(ratelimit, router, "Rate-limited requests")
+Rel(router, lb, "Routed requests")
+Rel(lb, connector, "Load-balanced requests")
+Rel(connector, services, "Proxies to backend", "HTTP/gRPC/WS/SSE")
+
+' Control flow
+Rel(config, router, "Configures routes", "")
+Rel(config, auth, "Configures auth rules", "")
+Rel(config, ratelimit, "Configures limits", "")
+Rel(docker, registry, "Provides service info", "Labels")
+Rel(registry, lb, "Updates endpoints", "")
+
+SHOW_LEGEND()
+
+@enduml

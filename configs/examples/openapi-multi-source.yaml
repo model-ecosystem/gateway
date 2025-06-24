@@ -1,0 +1,97 @@
+# OpenAPI Gateway with Multi-Source Spec Loading
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+      readTimeout: 30
+      writeTimeout: 30
+  
+  backend:
+    http:
+      maxIdleConns: 100
+      maxIdleConnsPerHost: 10
+      idleConnTimeout: 90
+      dialTimeout: 10
+      responseHeaderTimeout: 10
+  
+  # Service registry
+  registry:
+    type: static
+    static:
+      services:
+        - name: api-service
+          instances:
+            - id: api-1
+              address: "127.0.0.1"
+              port: 3000
+              health: healthy
+        - name: user-service
+          instances:
+            - id: user-1
+              address: "127.0.0.1"
+              port: 3001
+              health: healthy
+        - name: product-service
+          instances:
+            - id: product-1
+              address: "127.0.0.1"
+              port: 3002
+              health: healthy
+  
+  # OpenAPI dynamic routing with multi-source support
+  protocols:
+    openapi:
+      enabled: true
+      # Spec sources - can load from multiple sources
+      specSources:
+        # Load from local file system
+        - type: file
+          paths:
+            - "/app/specs/user-api.yaml"
+            - "/app/specs/product-api.yaml"
+            - "/app/specs/order-api.json"
+        
+        # Load from HTTP/HTTPS endpoints
+        - type: http
+          urls:
+            - "https://api.example.com/specs/payment-api.yaml"
+            - "https://raw.githubusercontent.com/example/api-specs/main/notification-api.yaml"
+          headers:
+            Accept: "application/yaml"
+          timeout: 15
+        
+        # Load from Kubernetes ConfigMap
+        - type: k8s-configmap
+          namespace: default
+          configMaps:
+            - name: api-specs
+              keys:
+                - "analytics-api.yaml"
+                - "reporting-api.yaml"
+            - name: external-apis
+              keys:
+                - "partner-api.json"
+      
+      # Automatic reload when specs change
+      autoReload: true
+      reloadInterval: 60
+      failOnError: false
+      
+      # File extensions to consider as OpenAPI specs
+      fileExtensions:
+        - ".yaml"
+        - ".yml"
+        - ".json"
+      
+      # Default service for routes without explicit service mapping
+      defaultService: api-service
+      
+      # Service mapping based on OpenAPI tags or x-gateway-service
+      serviceMapping:
+        user: user-service
+        users: user-service
+        product: product-service
+        products: product-service
+        payment: payment-service
+        order: order-service

@@ -40,7 +40,7 @@ gateway:
         serviceName: flaky-service
         loadBalance: round_robin
 
-  # Retry configuration
+  # Retry configuration with budget tracking
   retry:
     enabled: true
     default:
@@ -49,6 +49,7 @@ gateway:
       maxDelay: 5000         # Cap at 5 seconds
       multiplier: 2.0        # Double delay each time
       jitter: true           # Add randomness to prevent thundering herd
+      budgetRatio: 0.1       # Allow 10% of requests to be retried (prevents retry storms)
     
     # Route-specific configurations
     routes:

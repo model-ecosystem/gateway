@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"gateway/internal/core"
@@ -13,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"sync/atomic"
+	"time"
 )
 
 // Adapter handles HTTP requests
@@ -152,7 +154,17 @@ func (a *Adapter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Increment request counter
 	a.reqNum.Add(1)
 
-	// Handle health check endpoints first (no request ID needed)
+	// Handle built-in gateway endpoints first
+	switch r.URL.Path {
+	case "/_gateway/health":
+		a.handleGatewayHealth(w, r)
+		return
+	case "/_gateway/echo":
+		a.handleGatewayEcho(w, r)
+		return
+	}
+
+	// Handle health check endpoints (no request ID needed)
 	if a.healthHandler != nil && a.healthConfig.Enabled {
 		switch r.URL.Path {
 		case a.healthConfig.HealthPath:
@@ -299,4 +311,41 @@ func isSSERequest(r *http.Request) bool {
 	// Check if path indicates SSE (configurable)
 	// This is a simple heuristic; real routing should be done by the router
 	return false
+}
+
+// handleGatewayHealth returns the gateway's own health status
+func (a *Adapter) handleGatewayHealth(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, `{"status":"healthy","service":"gateway","timestamp":"%s"}`, 
+		time.Now().Format(time.RFC3339))
+}
+
+// handleGatewayEcho echoes back request information
+func (a *Adapter) handleGatewayEcho(w http.ResponseWriter, r *http.Request) {
+	// Read body
+	var body string
+	if r.Body != nil {
+		data, _ := io.ReadAll(r.Body)
+		body = string(data)
+		r.Body.Close()
+	}
+
+	// Build response
+	resp := map[string]interface{}{
+		"method": r.Method,
+		"path":   r.URL.Path,
+		"query":  r.URL.Query(),
+		"headers": r.Header,
+		"body":   body,
+		"remote": r.RemoteAddr,
+		"timestamp": time.Now().Format(time.RFC3339),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	
+	encoder := json.NewEncoder(w)
+	encoder.SetIndent("", "  ")
+	encoder.Encode(resp)
 }

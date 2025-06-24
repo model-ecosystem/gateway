@@ -1,0 +1,74 @@
+@startuml request-flow
+!theme aws-orange
+skinparam defaultFontName "Amazon Ember"
+skinparam backgroundColor #FAFAFA
+skinparam ArrowColor #232F3E
+skinparam ArrowThickness 2
+skinparam ActivityBorderColor #232F3E
+skinparam ActivityBackgroundColor #FFFFFF
+skinparam ActivityBorderThickness 2
+
+title Gateway Request Processing Pipeline
+
+|Client|
+start
+:HTTP/WebSocket/SSE Request;
+
+|Gateway|
+:Protocol Adapter;
+note right: Parse and validate protocol
+
+|Authentication|
+if (Auth Required?) then (yes)
+  :Extract Credentials;
+  if (Valid?) then (yes)
+  else (no)
+    |Client|
+    :401 Unauthorized;
+    stop
+  endif
+else (no)
+endif
+
+|Rate Limiting|
+:Check Rate Limit;
+if (Within Limit?) then (yes)
+else (no)
+  |Client|
+  :429 Too Many Requests;
+  stop
+endif
+
+|Routing|
+:Match Route Pattern;
+if (Route Found?) then (yes)
+  :Select Service;
+else (no)
+  |Client|
+  :404 Not Found;
+  stop
+endif
+
+|Load Balancing|
+:Select Backend Instance;
+note right: Round-robin or sticky session
+
+|Backend Connection|
+:Establish Connection;
+:Proxy Request;
+note right: Stream request body
+
+|Upstream Service|
+:Process Request;
+:Send Response;
+
+|Backend Connection|
+:Stream Response;
+note right: No buffering
+
+|Client|
+:Receive Response;
+
+stop
+
+@enduml

@@ -1,0 +1,562 @@
+# Complete Gateway Configuration Example
+# This example shows all available configuration options
+
+gateway:
+  # Frontend configuration (incoming requests)
+  frontend:
+    # HTTP frontend adapter
+    http:
+      host: "0.0.0.0"
+      port: 8080
+      readTimeout: 30
+      writeTimeout: 30
+      maxRequestSize: 10485760  # 10MB
+      
+      # TLS configuration for HTTPS
+      tls:
+        enabled: false
+        certFile: "./certs/server.crt"
+        keyFile: "./certs/server.key"
+        minVersion: "1.2"
+        maxVersion: "1.3"
+        preferServerCipher: true
+    
+    # WebSocket frontend adapter
+    websocket:
+      enabled: true
+      path: "/ws"
+      maxConnections: 1000
+      readBufferSize: 1024
+      writeBufferSize: 1024
+      pingInterval: 30
+      pongTimeout: 60
+      messageLimit: 1048576  # 1MB
+      
+    # Server-Sent Events (SSE) frontend adapter
+    sse:
+      enabled: true
+      path: "/events"
+      keepAliveInterval: 30
+      maxConnections: 5000
+      bufferSize: 1024
+
+  # Backend configuration (outgoing requests)
+  backend:
+    # HTTP backend connector
+    http:
+      # Connection pool settings
+      maxIdleConns: 100
+      maxIdleConnsPerHost: 10
+      maxConnsPerHost: 50
+      idleConnTimeout: 90
+      
+      # Connection settings
+      keepAlive: true
+      keepAliveTimeout: 30
+      disableCompression: false
+      disableHTTP2: false
+      
+      # Timeout settings
+      dialTimeout: 10
+      responseHeaderTimeout: 10
+      expectContinueTimeout: 1
+      tlsHandshakeTimeout: 10
+      
+      # Backend TLS configuration
+      tls:
+        enabled: false
+        insecureSkipVerify: false
+        serverName: ""
+        clientCertFile: "./certs/client.crt"
+        clientKeyFile: "./certs/client.key"
+    
+    # WebSocket backend connector
+    websocket:
+      enabled: true
+      maxMessageSize: 1048576  # 1MB
+      handshakeTimeout: 10
+      readBufferSize: 1024
+      writeBufferSize: 1024
+      enableCompression: false
+      
+    # SSE backend connector
+    sse:
+      enabled: true
+      reconnectInterval: 5
+      maxReconnectAttempts: 10
+
+  # Service registry configuration
+  registry:
+    type: static  # Options: static, docker, kubernetes, dockercompose
+    
+    # Static service registry
+    static:
+      services:
+        - name: "api-service"
+          instances:
+            - id: "api-1"
+              address: "127.0.0.1"
+              port: 9001
+              health: healthy
+              weight: 100
+              metadata:
+                region: "us-east"
+                version: "v1"
+            - id: "api-2"
+              address: "127.0.0.1"
+              port: 9002
+              health: healthy
+              weight: 50
+              metadata:
+                region: "us-east"
+                version: "v2"
+        
+        - name: "auth-service"
+          instances:
+            - id: "auth-1"
+              address: "127.0.0.1"
+              port: 9010
+              health: healthy
+    
+    # Docker service discovery
+    docker:
+      endpoint: "unix:///var/run/docker.sock"
+      labelPrefix: "gateway"
+      refreshInterval: 30
+    
+    # Kubernetes service discovery
+    kubernetes:
+      namespace: "default"
+      labelSelector: "app=gateway"
+      refreshInterval: 30
+    
+    # Docker Compose service discovery
+    dockercompose:
+      projectName: "myproject"
+      networkName: "myproject_default"
+      refreshInterval: 30
+
+  # Routing configuration
+  router:
+    # Default load balancing strategy
+    defaultLoadBalance: "round_robin"  # Options: round_robin, weighted, least_connections, consistent_hash, sticky
+    
+    # Routing rules
+    rules:
+      # Health check endpoint
+      - id: "health"
+        path: "/health"
+        serviceName: "_internal"
+        metadata:
+          skipAuth: true
+          skipRateLimit: true
+      
+      # API routes with authentication
+      - id: "api-v1"
+        path: "/api/v1/*"
+        serviceName: "api-service"
+        loadBalance: "weighted"
+        timeout: 30
+        stripPrefix: false
+        metadata:
+          requiredScopes: ["api:read"]
+          rateLimit: 1000
+          authRequired: true
+      
+      # WebSocket routes
+      - id: "websocket"
+        path: "/ws/*"
+        serviceName: "api-service"
+        protocol: "websocket"
+        loadBalance: "sticky"
+        sessionAffinity:
+          enabled: true
+          cookieName: "gateway_session"
+          ttl: 3600
+      
+      # SSE routes
+      - id: "events"
+        path: "/events/*"
+        serviceName: "api-service"
+        protocol: "sse"
+        timeout: 0  # No timeout for streaming
+      
+      # gRPC routes
+      - id: "grpc"
+        path: "/grpc/*"
+        serviceName: "api-service"
+        protocol: "grpc"
+        grpc:
+          transcoding: true
+          protoDescriptor: "./protos/api.pb"
+
+  # Authentication configuration
+  auth:
+    required: false  # Global auth requirement
+    providers:
+      - "jwt"
+      - "apikey"
+      - "oauth2"
+    
+    # JWT authentication
+    jwt:
+      enabled: true
+      tokenHeader: "Authorization"
+      bearerPrefix: "Bearer "
+      tokenCookie: "auth_token"
+      tokenQuery: "token"
+      
+      # Multiple JWT providers
+      providers:
+        - name: "internal"
+          issuer: "https://auth.example.com"
+          audience:
+            - "api.example.com"
+          jwksEndpoint: "https://auth.example.com/.well-known/jwks.json"
+          algorithm: "RS256"
+          validateExp: true
+          validateNbf: true
+          clockSkew: 60
+          subjectClaim: "sub"
+          scopeClaim: "scope"
+          customClaims:
+            role: "role"
+            permissions: "perms"
+    
+    # API Key authentication
+    apikey:
+      enabled: true
+      header: "X-API-Key"
+      query: "api_key"
+      cookie: "api_key"
+      hashAlgorithm: "sha256"
+      
+      # API key storage
+      keys:
+        - key: "test-key-123"
+          hashedKey: "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"
+          name: "Test Client"
+          scopes:
+            - "api:read"
+            - "api:write"
+          metadata:
+            clientId: "client-123"
+            tier: "premium"
+
+  # OAuth2/OIDC configuration
+  middleware:
+    auth:
+      oauth2:
+        enabled: true
+        tokenHeader: "Authorization"
+        bearerPrefix: "Bearer"
+        requireScopes:
+          - "api:access"
+        
+        providers:
+          - name: "google"
+            clientId: "${GOOGLE_CLIENT_ID}"
+            clientSecret: "${GOOGLE_CLIENT_SECRET}"
+            issuerUrl: "https://accounts.google.com"
+            useDiscovery: true
+            validateIssuer: true
+            validateAudience: true
+            scopes:
+              - "openid"
+              - "email"
+              - "profile"
+    
+    # RBAC authorization
+    authz:
+      rbac:
+        enabled: true
+        enforcementMode: "enforce"
+        defaultAllow: false
+        
+        policies:
+          - name: "api-policy"
+            roles:
+              admin:
+                permissions:
+                  - "*:*"
+              user:
+                permissions:
+                  - "api:read"
+                  - "profile:*"
+            bindings:
+              "admin@example.com": ["admin"]
+              "user@example.com": ["user"]
+    
+    # Rate limiting
+    ratelimit:
+      enabled: true
+      algorithm: "token_bucket"
+      
+      # Global rate limits
+      global:
+        enabled: true
+        rate: 10000
+        burst: 1000
+        period: "1m"
+      
+      # Per-IP rate limits
+      perIP:
+        enabled: true
+        rate: 100
+        burst: 50
+        period: "1m"
+      
+      # Per-route rate limits (can override in route metadata)
+      perRoute:
+        enabled: true
+        defaultRate: 1000
+        defaultBurst: 100
+        defaultPeriod: "1m"
+    
+    # Circuit breaker
+    circuitbreaker:
+      enabled: true
+      failureThreshold: 5
+      successThreshold: 2
+      timeout: 30
+      halfOpenRequests: 3
+      observabilityWindow: 60
+    
+    # Retry logic
+    retry:
+      enabled: true
+      maxAttempts: 3
+      initialDelay: 100  # milliseconds
+      maxDelay: 10000
+      multiplier: 2
+      jitter: 0.1
+      retryableStatusCodes:
+        - 502
+        - 503
+        - 504
+      
+      # Retry budget
+      budget:
+        enabled: true
+        ratio: 0.1  # 10% of requests can be retries
+        minRetryTokens: 10
+    
+    # CORS
+    cors:
+      enabled: true
+      allowOrigins:
+        - "https://example.com"
+        - "https://app.example.com"
+      allowMethods:
+        - "GET"
+        - "POST"
+        - "PUT"
+        - "DELETE"
+        - "OPTIONS"
+      allowHeaders:
+        - "Content-Type"
+        - "Authorization"
+        - "X-Request-ID"
+      exposeHeaders:
+        - "X-Request-ID"
+        - "X-Response-Time"
+      allowCredentials: true
+      maxAge: 86400
+    
+    # Request/Response transformations
+    transform:
+      enabled: true
+      
+      globalRequest:
+        headers:
+          add:
+            X-Gateway-Version: "1.0"
+            X-Request-ID: "${request_id}"
+          remove:
+            - "X-Internal-Secret"
+      
+      globalResponse:
+        headers:
+          add:
+            X-Response-Time: "${duration}ms"
+          remove:
+            - "Server"
+    
+    # Request tracking
+    tracking:
+      enabled: true
+      headerName: "X-Request-ID"
+      generateIfMissing: true
+      propagateToBackend: true
+
+  # Health checking configuration
+  health:
+    enabled: true
+    interval: 10
+    timeout: 5
+    unhealthyThreshold: 3
+    healthyThreshold: 2
+    
+    # Health check types
+    checks:
+      - type: "http"
+        path: "/health"
+        expectedStatus: 200
+      - type: "tcp"
+        timeout: 3
+
+  # Metrics configuration
+  metrics:
+    enabled: true
+    path: "/metrics"
+    includePathLabel: true
+    includeMethodLabel: true
+    includeStatusLabel: true
+    
+    # Buckets for histogram metrics
+    buckets:
+      - 0.001
+      - 0.01
+      - 0.1
+      - 0.5
+      - 1.0
+      - 5.0
+      - 10.0
+
+  # OpenTelemetry configuration
+  telemetry:
+    enabled: true
+    serviceName: "api-gateway"
+    
+    # Tracing configuration
+    tracing:
+      enabled: true
+      sampler: "always"  # always, never, probabilistic, parent_based
+      samplerArg: 1.0
+      
+      exporter:
+        type: "otlp"  # otlp, jaeger, zipkin
+        endpoint: "http://localhost:4318/v1/traces"
+        insecure: true
+        headers:
+          api-key: "${OTEL_API_KEY}"
+    
+    # Metrics configuration
+    metrics:
+      enabled: true
+      interval: 60
+      
+      exporter:
+        type: "prometheus"  # prometheus, otlp
+        endpoint: "http://localhost:4318/v1/metrics"
+    
+    # Logging configuration
+    logging:
+      enabled: true
+      level: "info"  # debug, info, warn, error
+      format: "json"  # json, text
+      
+      # Log correlation
+      correlation:
+        enabled: true
+        traceIdField: "trace_id"
+        spanIdField: "span_id"
+
+  # Redis configuration (for distributed features)
+  redis:
+    enabled: false
+    addresses:
+      - "localhost:6379"
+    password: "${REDIS_PASSWORD}"
+    db: 0
+    maxRetries: 3
+    poolSize: 10
+    minIdleConns: 5
+    maxConnAge: 300
+    idleTimeout: 240
+    
+    # Redis Cluster configuration
+    cluster:
+      enabled: false
+      addresses:
+        - "localhost:7000"
+        - "localhost:7001"
+        - "localhost:7002"
+
+  # Management API configuration
+  management:
+    enabled: true
+    host: "127.0.0.1"
+    port: 9090
+    
+    # Management endpoints
+    endpoints:
+      health: true
+      metrics: true
+      routes: true
+      services: true
+      config: true
+      
+    # Management API authentication
+    auth:
+      enabled: true
+      type: "basic"  # basic, token
+      username: "admin"
+      password: "${MANAGEMENT_PASSWORD}"
+      token: "${MANAGEMENT_TOKEN}"
+
+  # OpenAPI configuration
+  openapi:
+    enabled: true
+    specsDirectory: "./specs"
+    watchFiles: true
+    reloadInterval: 300
+    
+    # Dynamic descriptor loading
+    descriptors:
+      specFiles:
+        - "./specs/api.yaml"
+      specDirs:
+        - "./api-specs/"
+      specUrls:
+        - "https://api.example.com/openapi.json"
+      
+      autoReload: true
+      reloadInterval: 30s
+      failOnError: false
+    
+    # Service mappings
+    serviceMappings:
+      users: "user-service"
+      products: "product-service"
+      orders: "order-service"
+
+  # Versioning configuration
+  versioning:
+    enabled: true
+    strategy: "header"  # header, path, query
+    headerName: "X-API-Version"
+    queryParam: "version"
+    defaultVersion: "v1"
+    
+    # Version mappings
+    versions:
+      v1:
+        services:
+          - "api-service-v1"
+        deprecated: false
+      v2:
+        services:
+          - "api-service-v2"
+        deprecated: false
+        sunset: "2025-12-31"
+
+# Environment variable substitution:
+# - Use ${VAR_NAME} to reference environment variables
+# - Use ${VAR_NAME:-default} to provide default values
+# - Common variables:
+#   - ${GATEWAY_PORT:-8080}
+#   - ${REDIS_PASSWORD}
+#   - ${JWT_SECRET}
+#   - ${MANAGEMENT_PASSWORD}
+#   - ${OTEL_API_KEY}

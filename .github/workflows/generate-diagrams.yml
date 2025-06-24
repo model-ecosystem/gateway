@@ -1,0 +1,46 @@
+name: Generate Architecture Diagrams
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/architecture/**.puml'
+  pull_request:
+    paths:
+      - 'docs/architecture/**.puml'
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate PlantUML Diagrams
+        uses: holowinski/plantuml-github-action@main
+        with:
+          args: -v -tsvg -charset UTF-8 docs/architecture/*.puml
+
+      - name: Move generated files
+        run: |
+          mkdir -p assets/images/architecture
+          mv docs/architecture/*.svg assets/images/architecture/
+
+      - name: Commit generated diagrams
+        if: github.event_name == 'push'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add assets/images/architecture/*.svg
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "docs: auto-generate architecture diagrams [skip ci]"
+            git push
+          fi

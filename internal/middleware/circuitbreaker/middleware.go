@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"sync"
 
-	"gateway/internal/circuitbreaker"
+	"gateway/pkg/circuitbreaker"
 	"gateway/internal/core"
 	gwerrors "gateway/pkg/errors"
 )
@@ -86,16 +86,21 @@ func (m *Middleware) Apply() core.Middleware {
 	}
 }
 
+// routeContextKey is the key for storing route info in context
+type routeContextKey struct{}
+
 // getCircuitBreakerKey determines the circuit breaker key for a request
 func (m *Middleware) getCircuitBreakerKey(ctx context.Context, req core.Request) string {
-	// Try to get route ID from context
-	if routeID, ok := ctx.Value("route_id").(string); ok {
-		return "route:" + routeID
-	}
-
-	// Try to get service name from context
-	if serviceName, ok := ctx.Value("service_name").(string); ok {
-		return "service:" + serviceName
+	// Try to get route result from context (set by route-aware middleware)
+	if route, ok := ctx.Value(routeContextKey{}).(*core.RouteResult); ok && route != nil {
+		// Prefer route ID if available
+		if route.Rule != nil && route.Rule.ID != "" {
+			return "route:" + route.Rule.ID
+		}
+		// Fall back to service name
+		if route.Rule != nil && route.Rule.ServiceName != "" {
+			return "service:" + route.Rule.ServiceName
+		}
 	}
 
 	// Default to path-based key

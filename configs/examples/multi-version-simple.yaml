@@ -1,0 +1,98 @@
+# Simple Multi-Version API Example
+# This demonstrates basic versioning with path-based routing
+
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+
+  backend:
+    http:
+      maxIdleConns: 100
+      dialTimeout: 10
+      responseHeaderTimeout: 10
+
+  # API Versioning Configuration
+  versioning:
+    enabled: true
+    strategy: path          # Extract version from URL path (e.g., /v2/users)
+    defaultVersion: "1.0"   # Default when no version specified
+    
+    # Version to service mappings
+    versionMappings:
+      "1.0":
+        service: "api-v1"     # Route v1 requests to api-v1 service
+      "2.0":
+        service: "api-v2"     # Route v2 requests to api-v2 service
+      "3.0":
+        service: "api-v3"     # Route v3 requests to api-v3 service
+    
+    # Deprecated versions with notifications
+    deprecatedVersions:
+      "1.0":
+        message: "Version 1.0 is deprecated and will be removed on 2025-06-01"
+        sunsetDate: "2025-06-01T00:00:00Z"
+
+  # Service registry
+  registry:
+    type: static
+    static:
+      services:
+        # Version 1 API service
+        - name: api-v1
+          instances:
+            - id: v1-1
+              address: "127.0.0.1"
+              port: 8081
+              health: healthy
+        
+        # Version 2 API service
+        - name: api-v2
+          instances:
+            - id: v2-1
+              address: "127.0.0.1"
+              port: 8082
+              health: healthy
+        
+        # Version 3 API service
+        - name: api-v3
+          instances:
+            - id: v3-1
+              address: "127.0.0.1"
+              port: 8083
+              health: healthy
+
+  # Routing rules
+  router:
+    rules:
+      # API route - versioning will automatically route to correct service
+      - id: api-users
+        path: /users/*
+        serviceName: api-v1  # Default service (overridden by versioning)
+        loadBalance: round_robin
+        timeout: 30
+
+# Usage Examples:
+# 
+# 1. Version 1 (deprecated):
+#    curl http://localhost:8080/v1/users
+#    Response headers will include:
+#    - X-API-Version: 1.0
+#    - X-API-Deprecated: true
+#    - X-API-Deprecation-Message: Version 1.0 is deprecated...
+#
+# 2. Version 2:
+#    curl http://localhost:8080/v2/users
+#    Response headers:
+#    - X-API-Version: 2.0
+#
+# 3. Version 3:
+#    curl http://localhost:8080/v3/users
+#    Response headers:
+#    - X-API-Version: 3.0
+#
+# 4. No version (uses default):
+#    curl http://localhost:8080/users
+#    Response headers:
+#    - X-API-Version: 1.0

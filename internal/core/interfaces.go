@@ -42,6 +42,13 @@ type ServiceInstance struct {
 	Metadata map[string]any
 }
 
+// Service represents a service with its instances
+type Service struct {
+	Name      string
+	Instances []*ServiceInstance
+	Metadata  map[string]string
+}
+
 // ServiceRegistry provides service discovery
 type ServiceRegistry interface {
 	GetService(name string) ([]ServiceInstance, error)
@@ -49,8 +56,9 @@ type ServiceRegistry interface {
 
 // RouteResult contains the result of routing
 type RouteResult struct {
-	Instance *ServiceInstance
-	Rule     *RouteRule
+	Instance    *ServiceInstance
+	Rule        *RouteRule
+	ServiceName string // Can be overridden by versioning
 }
 
 // Router routes requests to services
@@ -87,8 +95,14 @@ type RouteRule struct {
 type LoadBalanceStrategy string
 
 const (
-	LoadBalanceRoundRobin    LoadBalanceStrategy = "round_robin"
-	LoadBalanceStickySession LoadBalanceStrategy = "sticky_session"
+	LoadBalanceRoundRobin        LoadBalanceStrategy = "round_robin"
+	LoadBalanceStickySession     LoadBalanceStrategy = "sticky_session"
+	LoadBalanceWeightedRoundRobin LoadBalanceStrategy = "weighted_round_robin"
+	LoadBalanceWeightedRandom    LoadBalanceStrategy = "weighted_random"
+	LoadBalanceLeastConnections  LoadBalanceStrategy = "least_connections"
+	LoadBalanceResponseTime      LoadBalanceStrategy = "response_time"
+	LoadBalanceAdaptive          LoadBalanceStrategy = "adaptive"
+	LoadBalanceConsistentHash    LoadBalanceStrategy = "consistent_hash"
 )
 
 // SessionSource defines where to extract session ID from

@@ -18,7 +18,7 @@ func TestRouterIntegration(t *testing.T) {
 		},
 	}
 
-	router := NewRouter(registry)
+	router := NewRouter(registry, nil)
 
 	// Add routes that use ServeMux patterns
 	rules := []core.RouteRule{
@@ -138,7 +138,7 @@ func TestRouterConcurrency(t *testing.T) {
 		},
 	}
 
-	router := NewRouter(registry)
+	router := NewRouter(registry, nil)
 
 	rule := core.RouteRule{
 		ID:          "concurrent-test",
@@ -191,7 +191,7 @@ func TestRouterServeMuxPathExtraction(t *testing.T) {
 		},
 	}
 
-	router := NewRouter(registry)
+	router := NewRouter(registry, nil)
 
 	rule := core.RouteRule{
 		ID:          "param-test",

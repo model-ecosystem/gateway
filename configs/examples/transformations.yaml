@@ -1,0 +1,252 @@
+# Request/Response Transformations Example
+# This example shows how to transform requests and responses
+
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+
+  middleware:
+    transform:
+      enabled: true
+      
+      # Global transformations (apply to all requests/responses)
+      globalRequest:
+        headers:
+          add:
+            X-Gateway-Version: "1.0"
+            X-Request-Start: "${timestamp}"
+          remove:
+            - "X-Internal-Debug"
+            - "X-Secret-Token"
+      
+      globalResponse:
+        headers:
+          add:
+            X-Response-Time: "${duration}ms"
+            X-Powered-By: "API Gateway"
+          remove:
+            - "Server"
+            - "X-Debug-Info"
+      
+      # Path-specific request transformations
+      request:
+        # Transform user API requests
+        "/api/v1/users/*":
+          headers:
+            add:
+              X-API-Version: "v1"
+            rename:
+              X-Customer-ID: "X-User-ID"
+          body:
+            operations:
+              # Add timestamp to all user requests
+              - type: "add"
+                path: "metadata.timestamp"
+                value: "${timestamp}"
+              # Remove sensitive fields
+              - type: "remove"
+                path: "password"
+              - type: "remove"
+                path: "ssn"
+          conditions:
+            - contentType: "application/json"
+        
+        # Transform order creation requests
+        "/api/v1/orders":
+          body:
+            operations:
+              # Add default values
+              - type: "add"
+                path: "status"
+                value: "pending"
+              - type: "add"
+                path: "created_at"
+                value: "${timestamp}"
+              # Rename fields for backend compatibility
+              - type: "rename"
+                from: "customerId"
+                to: "customer_id"
+              - type: "rename"
+                from: "productId"
+                to: "product_id"
+          conditions:
+            - method: "POST"
+            - contentType: "application/json"
+        
+        # Transform authentication requests
+        "/auth/*":
+          headers:
+            add:
+              X-Auth-Flow: "oauth2"
+          body:
+            operations:
+              # Convert email to lowercase
+              - type: "modify"
+                path: "email"
+                value: "${lowercase:email}"
+              # Add client info
+              - type: "add"
+                path: "client_info.ip"
+                value: "${remote_addr}"
+              - type: "add"
+                path: "client_info.user_agent"
+                value: "${header:User-Agent}"
+      
+      # Path-specific response transformations
+      response:
+        # Transform user API responses
+        "/api/v1/users/*":
+          headers:
+            add:
+              Cache-Control: "private, max-age=300"
+          body:
+            operations:
+              # Remove internal fields from responses
+              - type: "remove"
+                path: "internal_id"
+              - type: "remove"
+                path: "_metadata"
+              # Add computed fields
+              - type: "add"
+                path: "profile_url"
+                value: "https://api.example.com/profiles/${id}"
+              # Rename fields for API consistency
+              - type: "rename"
+                from: "created_timestamp"
+                to: "created_at"
+              - type: "rename"
+                from: "updated_timestamp"
+                to: "updated_at"
+        
+        # Transform search results
+        "/api/v1/search":
+          body:
+            operations:
+              # Add pagination info
+              - type: "add"
+                path: "pagination.total"
+                value: "${array_length:results}"
+              # Filter sensitive data from results
+              - type: "filter"
+                path: "results"
+                script: "item.public === true"
+              # Add relevance scores
+              - type: "modify"
+                path: "results"
+                script: "item.score = item.score || 0.5"
+        
+        # Transform error responses
+        "/api/*":
+          body:
+            operations:
+              # Standardize error format
+              - type: "rename"
+                from: "error_message"
+                to: "error.message"
+              - type: "rename"
+                from: "error_code"
+                to: "error.code"
+              - type: "add"
+                path: "error.timestamp"
+                value: "${timestamp}"
+              - type: "add"
+                path: "error.request_id"
+                value: "${request_id}"
+          conditions:
+            - header: "X-Error-Response"
+              value: "true"
+        
+        # Transform legacy API responses
+        "/legacy/*":
+          headers:
+            add:
+              X-API-Deprecated: "true"
+              X-API-Sunset-Date: "2024-12-31"
+          body:
+            operations:
+              # Convert snake_case to camelCase
+              - type: "rename"
+                from: "user_name"
+                to: "userName"
+              - type: "rename"
+                from: "first_name"
+                to: "firstName"
+              - type: "rename"
+                from: "last_name"
+                to: "lastName"
+              # Add deprecation notice
+              - type: "add"
+                path: "_deprecation_notice"
+                value: "This API will be sunset on 2024-12-31. Please migrate to v2."
+
+  router:
+    rules:
+      # User API routes
+      - id: "users-list"
+        path: "/api/v1/users"
+        serviceName: "user-service"
+        metadata:
+          transformations:
+            response:
+              # Route-specific transformation
+              maxResults: 100
+      
+      - id: "users-detail"
+        path: "/api/v1/users/*"
+        serviceName: "user-service"
+      
+      # Order API routes
+      - id: "orders"
+        path: "/api/v1/orders"
+        serviceName: "order-service"
+      
+      # Search API
+      - id: "search"
+        path: "/api/v1/search"
+        serviceName: "search-service"
+      
+      # Auth routes
+      - id: "auth"
+        path: "/auth/*"
+        serviceName: "auth-service"
+      
+      # Legacy API routes
+      - id: "legacy"
+        path: "/legacy/*"
+        serviceName: "legacy-service"
+
+  registry:
+    type: static
+    static:
+      services:
+        - name: "user-service"
+          instances:
+            - id: "user-1"
+              address: "127.0.0.1"
+              port: 9001
+        
+        - name: "order-service"
+          instances:
+            - id: "order-1"
+              address: "127.0.0.1"
+              port: 9002
+        
+        - name: "search-service"
+          instances:
+            - id: "search-1"
+              address: "127.0.0.1"
+              port: 9003
+        
+        - name: "auth-service"
+          instances:
+            - id: "auth-1"
+              address: "127.0.0.1"
+              port: 9004
+        
+        - name: "legacy-service"
+          instances:
+            - id: "legacy-1"
+              address: "127.0.0.1"
+              port: 9005

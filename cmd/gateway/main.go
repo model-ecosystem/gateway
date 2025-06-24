@@ -16,6 +16,7 @@ import (
 var (
 	configFile = flag.String("config", "configs/gateway.yaml", "config file path")
 	logLevel   = flag.String("log-level", "info", "log level")
+	hotReload  = flag.Bool("hot-reload", false, "enable configuration hot reload")
 )
 
 func main() {
@@ -24,11 +25,21 @@ func main() {
 	// Setup logging
 	setupLogging(*logLevel)
 
-	// Load config
+	// Load config or use default
 	cfg, err := config.NewLoader(*configFile).Load()
 	if err != nil {
-		slog.Error("failed to load config", "error", err)
-		os.Exit(1)
+		// If default config file doesn't exist, use built-in defaults
+		if *configFile == "configs/gateway.yaml" && os.IsNotExist(err) {
+			slog.Info("No config file found, using built-in defaults", "path", *configFile)
+			cfg, err = config.LoadDefault()
+			if err != nil {
+				slog.Error("failed to load default config", "error", err)
+				os.Exit(1)
+			}
+		} else {
+			slog.Error("failed to load config", "error", err)
+			os.Exit(1)
+		}
 	}
 
 	// Create server
@@ -41,6 +52,52 @@ func main() {
 	// Setup signal handling
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
+
+	// Setup hot reload if enabled
+	var watcher *config.Watcher
+	if *hotReload && *configFile != "" {
+		watcherConfig := &config.WatcherConfig{
+			OnChange: func(newConfig *config.Config) error {
+				slog.Info("Configuration changed, reloading...")
+				
+				// Create new server with new config
+				newServer, err := app.NewServer(newConfig, slog.Default())
+				if err != nil {
+					return err
+				}
+				
+				// Start new server
+				if err := newServer.Start(ctx); err != nil {
+					return err
+				}
+				
+				// Stop old server gracefully
+				stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer stopCancel()
+				if err := server.Stop(stopCtx); err != nil {
+					slog.Error("failed to stop old server", "error", err)
+				}
+				
+				// Replace server reference
+				server = newServer
+				slog.Info("Configuration reloaded successfully")
+				return nil
+			},
+			OnError: func(err error) {
+				slog.Error("Configuration reload error", "error", err)
+			},
+		}
+		
+		watcher, err = config.NewWatcher(*configFile, watcherConfig, slog.Default())
+		if err != nil {
+			slog.Error("failed to create config watcher", "error", err)
+			os.Exit(1)
+		}
+		watcher.Start()
+		defer watcher.Stop()
+		
+		slog.Info("Hot reload enabled", "config", *configFile)
+	}
 
 	// Start server
 	if err := server.Start(ctx); err != nil {

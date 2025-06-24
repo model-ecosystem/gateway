@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="800" height="600" fill="#1a1f2e"/>
+  
+  <!-- Title -->
+  <text x="400" y="30" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="20" font-weight="500" fill="#f0f0f0">Gateway Request Flow</text>
+  
+  <!-- Defs for arrows and patterns -->
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#a0a0a0"/>
+    </marker>
+    <marker id="arrow-success" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#4ade80"/>
+    </marker>
+    <marker id="arrow-error" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#ef4444"/>
+    </marker>
+  </defs>
+  
+  <!-- Client -->
+  <rect x="50" y="80" width="120" height="50" fill="#2d3748" stroke="#4a5568" stroke-width="1"/>
+  <text x="110" y="110" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" fill="#e2e8f0">Client Request</text>
+  
+  <!-- Gateway Container -->
+  <rect x="250" y="60" width="300" height="480" fill="#2d3748" stroke="#4a5568" stroke-width="1"/>
+  <text x="400" y="85" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="16" font-weight="500" fill="#f0f0f0">Gateway Processing</text>
+  
+  <!-- Step 1: Protocol Adapter -->
+  <rect x="270" y="110" width="260" height="40" fill="#1a365d" stroke="#2b6cb0" stroke-width="1"/>
+  <text x="400" y="135" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" fill="#90cdf4">1. Protocol Adapter</text>
+  
+  <!-- Step 2: Authentication -->
+  <rect x="270" y="170" width="260" height="40" fill="#44403c" stroke="#78716c" stroke-width="1"/>
+  <text x="400" y="195" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" fill="#fbbf24">2. Authentication</text>
+  
+  
+  <!-- Step 3: Rate Limiting -->
+  <rect x="270" y="230" width="260" height="40" fill="#44403c" stroke="#78716c" stroke-width="1"/>
+  <text x="400" y="255" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" fill="#fbbf24">3. Rate Limiting</text>
+  
+  
+  <!-- Step 4: Route Matching -->
+  <rect x="270" y="290" width="260" height="40" fill="#44403c" stroke="#78716c" stroke-width="1"/>
+  <text x="400" y="315" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" fill="#fbbf24">4. Route Matching</text>
+  
+  
+  <!-- Step 5: Load Balancer -->
+  <rect x="270" y="350" width="260" height="40" fill="#1a365d" stroke="#2b6cb0" stroke-width="1"/>
+  <text x="400" y="375" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" fill="#90cdf4">5. Load Balancer</text>
+  
+  <!-- Step 6: Backend Connector -->
+  <rect x="270" y="410" width="260" height="40" fill="#1a365d" stroke="#2b6cb0" stroke-width="1"/>
+  <text x="400" y="435" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" fill="#90cdf4">6. Backend Connector</text>
+  
+  <!-- Step 7: Response -->
+  <rect x="270" y="470" width="260" height="40" fill="#1a3d1a" stroke="#4b7c4b" stroke-width="1"/>
+  <text x="400" y="495" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" fill="#a3d9a3">7. Stream Response</text>
+  
+  <!-- Backend Service -->
+  <rect x="630" y="410" width="120" height="50" fill="#2d3748" stroke="#4a5568" stroke-width="1"/>
+  <text x="690" y="440" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" fill="#e2e8f0">Backend Service</text>
+  
+  <!-- Error Responses -->
+  <rect x="630" y="170" width="140" height="40" fill="#3d1a1a" stroke="#7c4b4b" stroke-width="1"/>
+  <text x="700" y="195" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" fill="#f87171">401 Unauthorized</text>
+  
+  <rect x="630" y="230" width="140" height="40" fill="#3d1a1a" stroke="#7c4b4b" stroke-width="1"/>
+  <text x="700" y="255" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" fill="#f87171">429 Too Many Requests</text>
+  
+  <rect x="630" y="290" width="140" height="40" fill="#3d1a1a" stroke="#7c4b4b" stroke-width="1"/>
+  <text x="700" y="315" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" fill="#f87171">404 Not Found</text>
+  
+  <!-- Client Response -->
+  <rect x="50" y="470" width="120" height="50" fill="#1a3d1a" stroke="#4b7c4b" stroke-width="1"/>
+  <text x="110" y="500" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" fill="#a3d9a3">Client Response</text>
+  
+  <!-- Flow Arrows -->
+  <!-- Request flow -->
+  <line x1="170" y1="105" x2="270" y2="130" stroke="#a0a0a0" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="210" y="105" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" fill="#a0a0a0">HTTP/WS/SSE</text>
+  
+  <!-- Internal flow down -->
+  <line x1="400" y1="150" x2="400" y2="170" stroke="#4ade80" stroke-width="1.5" marker-end="url(#arrow-success)"/>
+  <line x1="400" y1="210" x2="400" y2="230" stroke="#4ade80" stroke-width="1.5" marker-end="url(#arrow-success)"/>
+  <line x1="400" y1="270" x2="400" y2="290" stroke="#4ade80" stroke-width="1.5" marker-end="url(#arrow-success)"/>
+  <line x1="400" y1="330" x2="400" y2="350" stroke="#4ade80" stroke-width="1.5" marker-end="url(#arrow-success)"/>
+  <line x1="400" y1="390" x2="400" y2="410" stroke="#4ade80" stroke-width="1.5" marker-end="url(#arrow-success)"/>
+  <line x1="400" y1="450" x2="400" y2="470" stroke="#4ade80" stroke-width="1.5" marker-end="url(#arrow-success)"/>
+  
+  <!-- To backend -->
+  <line x1="530" y1="435" x2="630" y2="435" stroke="#a0a0a0" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="580" y="430" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" fill="#a0a0a0">Proxy</text>
+  
+  <!-- Error paths -->
+  <line x1="530" y1="190" x2="630" y2="190" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="3,3" marker-end="url(#arrow-error)"/>
+  <line x1="530" y1="250" x2="630" y2="250" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="3,3" marker-end="url(#arrow-error)"/>
+  <line x1="530" y1="310" x2="630" y2="310" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="3,3" marker-end="url(#arrow-error)"/>
+  
+  <!-- Backend response -->
+  <line x1="630" y1="450" x2="530" y2="485" stroke="#4ade80" stroke-width="2"/>
+  
+  <!-- Response flow to client (single path) -->
+  <line x1="400" y1="510" x2="400" y2="560" stroke="#4ade80" stroke-width="2"/>
+  <line x1="400" y1="560" x2="110" y2="560" stroke="#4ade80" stroke-width="2"/>
+  <line x1="110" y1="560" x2="110" y2="520" stroke="#4ade80" stroke-width="2" marker-end="url(#arrow-success)"/>
+  <text x="255" y="555" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" fill="#4ade80">Response</text>
+  
+  <!-- Error response paths (single merge point) -->
+  <line x1="770" y1="190" x2="780" y2="190" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="3,3"/>
+  <line x1="770" y1="250" x2="780" y2="250" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="3,3"/>
+  <line x1="770" y1="310" x2="780" y2="310" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="3,3"/>
+  
+  <!-- Error lines merge to single path -->
+  <line x1="780" y1="190" x2="780" y2="560" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="3,3"/>
+  <line x1="780" y1="560" x2="400" y2="560" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="3,3"/>
+  
+  <!-- Labels for decision points -->
+  <text x="565" y="185" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#a0a0a0">Auth?</text>
+  <text x="565" y="245" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#a0a0a0">Limit?</text>
+  <text x="565" y="305" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#a0a0a0">Found?</text>
+</svg>

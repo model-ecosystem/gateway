@@ -1,0 +1,38 @@
+# Default configuration for zero-config startup
+gateway:
+  frontend:
+    http:
+      host: "127.0.0.1"
+      port: 8080
+      readTimeout: 30
+      writeTimeout: 30
+  
+  backend:
+    http:
+      maxIdleConns: 100
+      maxIdleConnsPerHost: 10
+      idleConnTimeout: 90
+      keepAlive: true
+      keepAliveTimeout: 30
+      dialTimeout: 10
+      responseHeaderTimeout: 10
+  
+  registry:
+    type: static
+    static:
+      services:
+        - name: httpbin
+          instances:
+            - id: httpbin-1
+              address: httpbin.org
+              port: 443
+              health: healthy
+  
+  router:
+    rules:
+      # Default route to httpbin for demo
+      - id: default
+        path: /*
+        serviceName: httpbin
+        loadBalance: round_robin
+        timeout: 10

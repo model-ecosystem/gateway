@@ -4,6 +4,7 @@
 *.dll
 *.so
 *.dylib
+gateway
 
 # Test binary, built with `go test -c`
 *.test
@@ -41,5 +42,4 @@ Thumbs.db
 *.temp
 
 discussion/
-docs/
 CLAUDE.md

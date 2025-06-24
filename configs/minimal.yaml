@@ -1,0 +1,13 @@
+# Minimal configuration example
+gateway:
+  router:
+    rules:
+      - path: /*
+        serviceName: httpbin
+  registry:
+    static:
+      services:
+        - name: httpbin
+          instances:
+            - address: httpbin.org
+              port: 443

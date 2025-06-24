@@ -1,0 +1,96 @@
+package health
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"time"
+)
+
+// HTTPCheck creates a health check for an HTTP endpoint
+func HTTPCheck(url string, timeout time.Duration) Check {
+	return func(ctx context.Context) error {
+		client := &http.Client{
+			Timeout: timeout,
+		}
+
+		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		if err != nil {
+			return fmt.Errorf("creating request: %w", err)
+		}
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return fmt.Errorf("request failed: %w", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode >= 400 {
+			return fmt.Errorf("unhealthy status: %d", resp.StatusCode)
+		}
+
+		return nil
+	}
+}
+
+// DatabaseCheck creates a health check for database connectivity
+func DatabaseCheck(pingFunc func(context.Context) error) Check {
+	return func(ctx context.Context) error {
+		return pingFunc(ctx)
+	}
+}
+
+// DiskSpaceCheck creates a health check for available disk space
+func DiskSpaceCheck(path string, minBytes uint64) Check {
+	return func(ctx context.Context) error {
+		// This is a placeholder - actual implementation would check disk space
+		// using syscall or a library like github.com/shirou/gopsutil
+		return nil
+	}
+}
+
+// MemoryCheck creates a health check for available memory
+func MemoryCheck(maxUsagePercent float64) Check {
+	return func(ctx context.Context) error {
+		// This is a placeholder - actual implementation would check memory usage
+		// using runtime.MemStats or a library like github.com/shirou/gopsutil
+		return nil
+	}
+}
+
+// CustomCheck allows creating custom health checks
+func CustomCheck(name string, checkFunc func() error) Check {
+	return func(ctx context.Context) error {
+		// Create a channel for the result
+		done := make(chan error, 1)
+
+		// Run the check in a goroutine that respects context cancellation
+		go func() {
+			// Check if context is already cancelled
+			select {
+			case <-ctx.Done():
+				done <- ctx.Err()
+				return
+			default:
+			}
+
+			// Run the check
+			err := checkFunc()
+
+			// Try to send result, but don't block if context was cancelled
+			select {
+			case done <- err:
+			case <-ctx.Done():
+			}
+		}()
+
+		// Wait for either the result or context cancellation
+		select {
+		case err := <-done:
+			return err
+		case <-ctx.Done():
+			// Context cancelled - the goroutine will exit on its own
+			return fmt.Errorf("check timeout: %w", ctx.Err())
+		}
+	}
+}

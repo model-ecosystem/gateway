@@ -26,8 +26,8 @@ type Config struct {
 	OptionsSuccessStatus int
 }
 
-// DefaultConfig returns a default CORS configuration
-func DefaultConfig() Config {
+// defaultConfig returns a default CORS configuration
+func defaultConfig() Config {
 	return Config{
 		AllowedOrigins: []string{"*"},
 		AllowedMethods: []string{
@@ -48,6 +48,31 @@ func DefaultConfig() Config {
 	}
 }
 
+// DefaultConfig returns a default CORS configuration
+func DefaultConfig() Config {
+	return defaultConfig()
+}
+
+// Validate validates the CORS configuration
+func (c *Config) Validate() error {
+	// Ensure at least one origin is allowed
+	if len(c.AllowedOrigins) == 0 {
+		c.AllowedOrigins = []string{"*"}
+	}
+	
+	// Ensure at least one method is allowed
+	if len(c.AllowedMethods) == 0 {
+		c.AllowedMethods = defaultConfig().AllowedMethods
+	}
+	
+	// Ensure valid status code for OPTIONS
+	if c.OptionsSuccessStatus == 0 {
+		c.OptionsSuccessStatus = http.StatusNoContent
+	}
+	
+	return nil
+}
+
 // CORS provides Cross-Origin Resource Sharing middleware
 type CORS struct {
 	config         Config
@@ -55,19 +80,8 @@ type CORS struct {
 	allowedHeaders map[string]bool
 }
 
-// New creates a new CORS middleware handler
-func New(config Config) *CORS {
-	// Normalize and validate configuration
-	if len(config.AllowedOrigins) == 0 {
-		config.AllowedOrigins = []string{"*"}
-	}
-	if len(config.AllowedMethods) == 0 {
-		config.AllowedMethods = DefaultConfig().AllowedMethods
-	}
-	if config.OptionsSuccessStatus == 0 {
-		config.OptionsSuccessStatus = http.StatusNoContent
-	}
-
+// newCORS creates a new CORS handler with validated configuration
+func newCORS(config Config) *CORS {
 	// Pre-process allowed origins for faster lookup
 	allowedOrigins := make(map[string]bool)
 	for _, origin := range config.AllowedOrigins {
@@ -85,6 +99,13 @@ func New(config Config) *CORS {
 		allowedOrigins: allowedOrigins,
 		allowedHeaders: allowedHeaders,
 	}
+}
+
+// New creates a new CORS middleware handler
+func New(config Config) *CORS {
+	// Validate configuration
+	config.Validate()
+	return newCORS(config)
 }
 
 // Handler returns an HTTP handler that applies CORS headers
@@ -146,7 +167,7 @@ func (c *CORS) handlePreflight(w http.ResponseWriter, r *http.Request, origin st
 }
 
 // handleActualRequest handles actual CORS requests (not preflight)
-func (c *CORS) handleActualRequest(w http.ResponseWriter, r *http.Request, origin string) {
+func (c *CORS) handleActualRequest(w http.ResponseWriter, _ *http.Request, origin string) {
 	headers := w.Header()
 
 	// Check origin

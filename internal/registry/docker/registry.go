@@ -170,6 +170,30 @@ func (r *Registry) GetService(name string) ([]core.ServiceInstance, error) {
 	return result, nil
 }
 
+// ListServices returns all services
+func (r *Registry) ListServices() ([]*core.Service, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	services := make([]*core.Service, 0, len(r.services))
+	for name, instances := range r.services {
+		// Convert instances to pointers
+		instancePtrs := make([]*core.ServiceInstance, len(instances))
+		for i := range instances {
+			instancePtrs[i] = &instances[i]
+		}
+		
+		service := &core.Service{
+			Name:      name,
+			Instances: instancePtrs,
+			Metadata:  make(map[string]string),
+		}
+		services = append(services, service)
+	}
+
+	return services, nil
+}
+
 // refresh discovers services from Docker
 func (r *Registry) refresh() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

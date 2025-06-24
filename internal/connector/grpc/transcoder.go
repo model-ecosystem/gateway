@@ -55,6 +55,16 @@ func NewTranscoder(logger *slog.Logger) *Transcoder {
 	}
 }
 
+// GetRegistry returns the proto registry
+func (t *Transcoder) GetRegistry() *ProtoRegistry {
+	return t.registry
+}
+
+// SetRegistry sets the proto registry
+func (t *Transcoder) SetRegistry(registry *ProtoRegistry) {
+	t.registry = registry
+}
+
 // WithProtoRegistry sets a custom proto registry
 func (t *Transcoder) WithProtoRegistry(registry *ProtoRegistry) *Transcoder {
 	t.registry = registry

@@ -1,0 +1,227 @@
+# RBAC (Role-Based Access Control) Example
+# This example shows how to configure RBAC authorization
+
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+
+  # Authentication (required for RBAC)
+  auth:
+    required: true
+    providers:
+      - "jwt"
+    jwt:
+      enabled: true
+      issuer: "https://auth.example.com"
+      audience:
+        - "api.example.com"
+      jwksEndpoint: "https://auth.example.com/.well-known/jwks.json"
+      subjectClaim: "sub"
+      scopeClaim: "scope"
+
+  middleware:
+    authz:
+      rbac:
+        enabled: true
+        enforcementMode: "enforce"  # "enforce" or "permissive"
+        defaultAllow: false         # Deny by default
+        subjectKey: "auth_subject"  # Context key for authenticated subject
+        skipPaths:
+          - "/health"
+          - "/metrics"
+          - "/auth/"
+        
+        # Cache configuration
+        cacheSize: 1000
+        cacheTTL: 300  # 5 minutes
+        
+        # RBAC policies
+        policies:
+          # Main API policy
+          - name: "api-policy"
+            description: "Main API access policy"
+            
+            # Define roles
+            roles:
+              # Super admin with all permissions
+              super-admin:
+                name: "super-admin"
+                description: "Super administrator with full access"
+                permissions:
+                  - "*:*"  # All resources, all actions
+              
+              # API admin
+              api-admin:
+                name: "api-admin"
+                description: "API administrator"
+                permissions:
+                  - "api:*"        # All API actions
+                  - "users:*"      # All user management
+                  - "routes:*"     # Route management
+                  - "services:*"   # Service management
+                inherits:
+                  - "api-user"    # Inherit standard user permissions
+              
+              # Standard API user
+              api-user:
+                name: "api-user"
+                description: "Standard API user"
+                permissions:
+                  - "api:read"     # Read API resources
+                  - "api:list"     # List API resources
+                  - "profile:*"    # Full access to own profile
+              
+              # Read-only user
+              viewer:
+                name: "viewer"
+                description: "Read-only access"
+                permissions:
+                  - "*:read"       # Read all resources
+                  - "*:list"       # List all resources
+              
+              # Service-specific roles
+              orders-admin:
+                name: "orders-admin"
+                description: "Orders service administrator"
+                permissions:
+                  - "service:orders:*"     # All actions on orders service
+                  - "orders:*"             # All order operations
+                inherits:
+                  - "orders-user"
+              
+              orders-user:
+                name: "orders-user"
+                description: "Orders service user"
+                permissions:
+                  - "service:orders:read"  # Read from orders service
+                  - "orders:read"          # Read orders
+                  - "orders:create"        # Create orders
+                  - "orders:list"          # List orders
+              
+              # Monitoring role
+              monitoring:
+                name: "monitoring"
+                description: "Monitoring and metrics access"
+                permissions:
+                  - "metrics:read"         # Read metrics
+                  - "health:read"          # Read health status
+                  - "logs:read"            # Read logs
+                  - "traces:read"          # Read traces
+            
+            # Role bindings (subject -> roles)
+            bindings:
+              # Individual user bindings
+              "admin@example.com": ["super-admin"]
+              "api-admin@example.com": ["api-admin"]
+              "john.doe@example.com": ["api-user", "orders-user"]
+              "jane.viewer@example.com": ["viewer"]
+              "monitor@example.com": ["monitoring"]
+              
+              # Service account bindings
+              "service:frontend": ["api-user"]
+              "service:orders-processor": ["orders-admin"]
+              "service:reporting": ["viewer", "monitoring"]
+              
+              # Group bindings (if using groups from auth provider)
+              "group:developers": ["api-user"]
+              "group:admins": ["api-admin"]
+              "group:support": ["viewer", "monitoring"]
+
+  # Route-specific RBAC configuration
+  router:
+    rules:
+      # Public endpoints (skip RBAC)
+      - id: "health"
+        path: "/health"
+        serviceName: "health-service"
+        metadata:
+          skipAuth: true
+          skipAuthz: true
+      
+      # API endpoints
+      - id: "api-read"
+        path: "/api/v1/*/read"
+        serviceName: "api-service"
+        metadata:
+          requiredPermission: "api:read"
+      
+      - id: "api-write"
+        path: "/api/v1/*/write"
+        serviceName: "api-service"
+        metadata:
+          requiredPermission: "api:write"
+      
+      # Orders service
+      - id: "orders-service"
+        path: "/orders/*"
+        serviceName: "orders-service"
+        metadata:
+          resourcePrefix: "service:orders"
+      
+      # Admin endpoints
+      - id: "admin-users"
+        path: "/admin/users/*"
+        serviceName: "admin-service"
+        metadata:
+          requiredPermission: "users:*"
+      
+      - id: "admin-routes"
+        path: "/admin/routes/*"
+        serviceName: "admin-service"
+        metadata:
+          requiredPermission: "routes:*"
+      
+      # Monitoring endpoints
+      - id: "metrics"
+        path: "/metrics"
+        serviceName: "metrics-service"
+        metadata:
+          requiredPermission: "metrics:read"
+      
+      - id: "traces"
+        path: "/traces/*"
+        serviceName: "tracing-service"
+        metadata:
+          requiredPermission: "traces:read"
+
+  registry:
+    type: static
+    static:
+      services:
+        - name: "health-service"
+          instances:
+            - id: "health-1"
+              address: "127.0.0.1"
+              port: 9001
+        
+        - name: "api-service"
+          instances:
+            - id: "api-1"
+              address: "127.0.0.1"
+              port: 9002
+        
+        - name: "orders-service"
+          instances:
+            - id: "orders-1"
+              address: "127.0.0.1"
+              port: 9003
+        
+        - name: "admin-service"
+          instances:
+            - id: "admin-1"
+              address: "127.0.0.1"
+              port: 9004
+        
+        - name: "metrics-service"
+          instances:
+            - id: "metrics-1"
+              address: "127.0.0.1"
+              port: 9005
+        
+        - name: "tracing-service"
+          instances:
+            - id: "tracing-1"
+              address: "127.0.0.1"
+              port: 9006

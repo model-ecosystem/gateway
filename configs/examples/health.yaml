@@ -30,23 +30,33 @@ gateway:
         serviceName: backend-service
         loadBalance: round_robin
 
-  # Health check configuration
+  # Health check configuration with active backend monitoring
   health:
     enabled: true
     healthPath: /health
     readyPath: /ready
     livePath: /live
     checks:
-      backend:
+      # Monitor backend service health
+      backend-service:
         type: http
-        interval: 30
-        timeout: 5
+        interval: 30  # Check every 30 seconds
+        timeout: 5    # 5 second timeout
         config:
-          url: "http://localhost:3000/health"
+          type: http  # Backend monitor will check all instances
       
+      # Direct TCP check for database
       database:
         type: tcp
         interval: 60
         timeout: 3
         config:
           address: "localhost:5432"
+      
+      # You can also monitor specific endpoints
+      api-health:
+        type: http
+        interval: 15
+        timeout: 3
+        config:
+          url: "http://localhost:3000/health"

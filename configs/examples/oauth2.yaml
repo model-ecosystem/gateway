@@ -1,0 +1,179 @@
+# OAuth2/OIDC Authentication Example
+# This example shows how to configure OAuth2/OIDC authentication with multiple providers
+
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+
+  middleware:
+    auth:
+      oauth2:
+        enabled: true
+        tokenHeader: "Authorization"
+        bearerPrefix: "Bearer"
+        tokenCookie: "auth_token"  # Also check cookies
+        claimsKey: "oauth2_claims"
+        
+        # Required scopes for all requests
+        requireScopes:
+          - "api:read"
+        
+        # OAuth2/OIDC providers
+        providers:
+          # Google OIDC with auto-discovery
+          - name: "google"
+            clientId: "${GOOGLE_CLIENT_ID}"
+            clientSecret: "${GOOGLE_CLIENT_SECRET}"
+            issuerUrl: "https://accounts.google.com"
+            useDiscovery: true
+            validateIssuer: true
+            validateAudience: true
+            audience:
+              - "${GOOGLE_CLIENT_ID}"
+            scopes:
+              - "openid"
+              - "email"
+              - "profile"
+            claimsMapping:
+              email: "user_email"
+              name: "user_name"
+          
+          # GitHub OAuth2 (manual configuration)
+          - name: "github"
+            clientId: "${GITHUB_CLIENT_ID}"
+            clientSecret: "${GITHUB_CLIENT_SECRET}"
+            authorizationUrl: "https://github.com/login/oauth/authorize"
+            tokenUrl: "https://github.com/login/oauth/access_token"
+            userInfoUrl: "https://api.github.com/user"
+            scopes:
+              - "read:user"
+              - "user:email"
+          
+          # Keycloak with OIDC
+          - name: "keycloak"
+            clientId: "${KEYCLOAK_CLIENT_ID}"
+            clientSecret: "${KEYCLOAK_CLIENT_SECRET}"
+            issuerUrl: "${KEYCLOAK_ISSUER_URL}"
+            useDiscovery: true
+            validateIssuer: true
+            validateAudience: true
+            audience:
+              - "${KEYCLOAK_CLIENT_ID}"
+            scopes:
+              - "openid"
+              - "email"
+              - "profile"
+              - "roles"
+            claimsMapping:
+              resource_access.${KEYCLOAK_CLIENT_ID}.roles: "roles"
+              groups: "groups"
+          
+          # Auth0
+          - name: "auth0"
+            clientId: "${AUTH0_CLIENT_ID}"
+            clientSecret: "${AUTH0_CLIENT_SECRET}"
+            issuerUrl: "https://${AUTH0_DOMAIN}"
+            useDiscovery: true
+            validateIssuer: true
+            validateAudience: true
+            audience:
+              - "${AUTH0_AUDIENCE}"
+            scopes:
+              - "openid"
+              - "email"
+              - "profile"
+              - "offline_access"
+
+  # Route-specific OAuth2 configuration
+  router:
+    rules:
+      # Public endpoints (no auth)
+      - id: "health"
+        path: "/health"
+        serviceName: "health-service"
+        middleware:
+          auth:
+            oauth2:
+              enabled: false
+      
+      # API endpoints requiring specific scopes
+      - id: "api-read"
+        path: "/api/v1/read/*"
+        serviceName: "api-service"
+        middleware:
+          auth:
+            oauth2:
+              enabled: true
+              requireScopes:
+                - "api:read"
+      
+      - id: "api-write"
+        path: "/api/v1/write/*"
+        serviceName: "api-service"
+        middleware:
+          auth:
+            oauth2:
+              enabled: true
+              requireScopes:
+                - "api:read"
+                - "api:write"
+      
+      # Admin endpoints requiring specific audience
+      - id: "admin"
+        path: "/admin/*"
+        serviceName: "admin-service"
+        middleware:
+          auth:
+            oauth2:
+              enabled: true
+              requireAudience:
+                - "admin-api"
+              requireScopes:
+                - "admin:access"
+      
+      # OAuth2 callback endpoints
+      - id: "oauth-callback"
+        path: "/auth/callback"
+        serviceName: "oauth-handler"
+        middleware:
+          auth:
+            oauth2:
+              enabled: false  # Callbacks don't need auth
+      
+      - id: "oauth-authorize"
+        path: "/auth/authorize"
+        serviceName: "oauth-handler"
+        middleware:
+          auth:
+            oauth2:
+              enabled: false
+
+  registry:
+    type: static
+    static:
+      services:
+        - name: "health-service"
+          instances:
+            - id: "health-1"
+              address: "127.0.0.1"
+              port: 9001
+        
+        - name: "api-service"
+          instances:
+            - id: "api-1"
+              address: "127.0.0.1"
+              port: 9002
+        
+        - name: "admin-service"
+          instances:
+            - id: "admin-1"
+              address: "127.0.0.1"
+              port: 9003
+        
+        - name: "oauth-handler"
+          instances:
+            - id: "oauth-1"
+              address: "127.0.0.1"
+              port: 8080  # Internal handler

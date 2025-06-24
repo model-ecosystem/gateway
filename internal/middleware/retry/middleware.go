@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"gateway/internal/core"
-	"gateway/internal/retry"
+	"gateway/pkg/retry"
 	gwerrors "gateway/pkg/errors"
 )
 
@@ -23,9 +23,10 @@ type Config struct {
 
 // Middleware implements retry logic for backend requests
 type Middleware struct {
-	config   Config
-	retriers map[string]*retry.Retrier
-	logger   *slog.Logger
+	config       Config
+	retriers     map[string]*retry.Retrier
+	retryBudget  *GlobalBudget
+	logger       *slog.Logger
 }
 
 // New creates a new retry middleware
@@ -46,26 +47,57 @@ func New(config Config, logger *slog.Logger) *Middleware {
 		retriers["service:"+service] = retry.New(cfg)
 	}
 
+	// Create a global retry budget (10% of requests can retry by default)
+	// This prevents retry storms when backends are failing
+	retryBudget := NewGlobalBudget(0.1, 100, time.Minute)
+
 	return &Middleware{
-		config:   config,
-		retriers: retriers,
-		logger:   logger.With("component", "retry"),
+		config:      config,
+		retriers:    retriers,
+		retryBudget: retryBudget,
+		logger:      logger.With("component", "retry"),
 	}
+}
+
+// NewWithBudget creates a new retry middleware with custom budget
+func NewWithBudget(config Config, budgetRatio float64, logger *slog.Logger) *Middleware {
+	m := New(config, logger)
+	m.retryBudget = NewGlobalBudget(budgetRatio, 100, time.Minute)
+	return m
 }
 
 // Apply returns a middleware function that applies retry logic
 func (m *Middleware) Apply() core.Middleware {
 	return func(next core.Handler) core.Handler {
 		return func(ctx context.Context, req core.Request) (core.Response, error) {
+			// Record the request for budget tracking
+			m.retryBudget.RecordRequest()
+			
 			// Get retrier based on route or service
 			retrier := m.getRetrier(ctx)
 
 			var resp core.Response
 			var lastErr error
 			startTime := time.Now()
+			attemptCount := 0
 
 			// Use retrier to execute the request
 			err := retrier.Do(ctx, func(ctx context.Context) error {
+				attemptCount++
+				
+				// Check retry budget before retrying (first attempt always allowed)
+				if attemptCount > 1 {
+					if !m.retryBudget.CanRetry() {
+						m.logger.Debug("retry budget exhausted",
+							"path", req.Path(),
+							"budget_stats", m.retryBudget.Stats(),
+						)
+						return retry.NewNonRetryableError(lastErr)
+					}
+					// Record the retry
+					m.retryBudget.RecordRetry()
+				}
+				
 				var err error
 				resp, err = next(ctx, req)
 
@@ -126,19 +158,25 @@ func (m *Middleware) Apply() core.Middleware {
 	}
 }
 
+// routeContextKey is the key for storing route info in context
+type routeContextKey struct{}
+
 // getRetrier returns the appropriate retrier for the request
 func (m *Middleware) getRetrier(ctx context.Context) *retry.Retrier {
-	// Try route-specific retrier
-	if routeID, ok := ctx.Value("route_id").(string); ok {
-		if retrier, exists := m.retriers["route:"+routeID]; exists {
-			return retrier
+	// Try to get route result from context (set by route-aware middleware)
+	if route, ok := ctx.Value(routeContextKey{}).(*core.RouteResult); ok && route != nil {
+		// Try route-specific retrier
+		if route.Rule != nil && route.Rule.ID != "" {
+			if retrier, exists := m.retriers["route:"+route.Rule.ID]; exists {
+				return retrier
+			}
 		}
-	}
-
-	// Try service-specific retrier
-	if serviceName, ok := ctx.Value("service_name").(string); ok {
-		if retrier, exists := m.retriers["service:"+serviceName]; exists {
-			return retrier
+		
+		// Try service-specific retrier
+		if route.Rule != nil && route.Rule.ServiceName != "" {
+			if retrier, exists := m.retriers["service:"+route.Rule.ServiceName]; exists {
+				return retrier
+			}
 		}
 	}
 
@@ -148,6 +186,11 @@ func (m *Middleware) getRetrier(ctx context.Context) *retry.Retrier {
 
 // isRetryableError determines if an error should trigger a retry
 func (m *Middleware) isRetryableError(err error) bool {
+	// Don't retry nil errors
+	if err == nil {
+		return false
+	}
+	
 	// Don't retry client errors
 	var gwErr *gwerrors.Error
 	if errors.As(err, &gwErr) {
@@ -196,4 +239,9 @@ func (e *NonRetryableError) Error() string {
 // Unwrap returns the underlying error
 func (e *NonRetryableError) Unwrap() error {
 	return e.err
+}
+
+// GetBudgetStats returns current retry budget statistics
+func (m *Middleware) GetBudgetStats() BudgetStats {
+	return m.retryBudget.Stats()
 }

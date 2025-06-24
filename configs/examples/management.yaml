@@ -1,0 +1,91 @@
+# Management API Configuration Example
+# This configuration enables the runtime management API with authentication
+
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+      readTimeout: 30
+      writeTimeout: 30
+
+  backend:
+    http:
+      maxIdleConns: 100
+      maxIdleConnsPerHost: 10
+      idleConnTimeout: 90
+      keepAlive: true
+
+  registry:
+    type: static
+    static:
+      services:
+        - name: api-service
+          instances:
+            - id: api-1
+              address: "127.0.0.1"
+              port: 3000
+              health: healthy
+
+  router:
+    rules:
+      - id: api-route
+        path: /api/*
+        serviceName: api-service
+        loadBalance: round_robin
+        timeout: 10
+
+  # Management API Configuration
+  management:
+    enabled: true
+    host: "127.0.0.1"  # Bind to localhost only for security
+    port: 9090
+    basePath: "/management"
+    
+    # Authentication Options
+    auth:
+      # Option 1: Token-based authentication
+      type: token
+      token: "your-secure-management-token"
+      
+      # Option 2: Basic authentication (comment out token auth above)
+      # type: basic
+      # users:
+      #   admin: "admin123"
+      #   operator: "oper456"
+
+# Management API Endpoints:
+# 
+# Health & Status:
+# - GET /management/health - Overall health status
+# - GET /management/health/live - Liveness check
+# - GET /management/health/ready - Readiness check
+# - GET /management/info - Gateway information
+# - GET /management/stats - Runtime statistics
+#
+# Service Management:
+# - GET /management/services - List all services
+# - GET /management/services/{name} - Service details
+#
+# Route Management:
+# - GET /management/routes - List all routes
+# - POST /management/routes/reload - Reload routes
+#
+# Circuit Breaker:
+# - GET /management/circuit-breakers - Circuit breaker status
+# - POST /management/circuit-breakers/reset - Reset circuit breakers
+#
+# Rate Limiting:
+# - GET /management/rate-limits - Rate limit statistics
+#
+# Configuration:
+# - GET /management/config - Current configuration
+# - POST /management/config/reload - Reload configuration
+#
+# Authentication Examples:
+#
+# Token auth:
+# curl -H "Authorization: Bearer your-secure-management-token" http://localhost:9090/management/health
+#
+# Basic auth:
+# curl -u admin:admin123 http://localhost:9090/management/health

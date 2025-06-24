@@ -1,0 +1,101 @@
+# Consistent Hash Load Balancing Configuration Example
+# This configuration demonstrates consistent hash load balancing for stateful services
+
+gateway:
+  frontend:
+    http:
+      host: "0.0.0.0"
+      port: 8080
+      readTimeout: 30
+      writeTimeout: 30
+
+  backend:
+    http:
+      maxIdleConns: 100
+      maxIdleConnsPerHost: 10
+      idleConnTimeout: 90
+      keepAlive: true
+
+  registry:
+    type: static
+    static:
+      services:
+        # Stateful service with session data
+        - name: session-service
+          instances:
+            - id: session-1
+              address: "127.0.0.1"
+              port: 3001
+              health: healthy
+            - id: session-2
+              address: "127.0.0.1"
+              port: 3002
+              health: healthy
+            - id: session-3
+              address: "127.0.0.1"
+              port: 3003
+              health: healthy
+            - id: session-4
+              address: "127.0.0.1"
+              port: 3004
+              health: healthy
+
+        # Stateless service (can use regular round-robin)
+        - name: api-service
+          instances:
+            - id: api-1
+              address: "127.0.0.1"
+              port: 4001
+              health: healthy
+            - id: api-2
+              address: "127.0.0.1"
+              port: 4002
+              health: healthy
+
+  router:
+    rules:
+      # Consistent hash routing for stateful services
+      - id: session-route
+        path: /session/*
+        serviceName: session-service
+        loadBalance: consistent_hash  # Uses consistent hashing
+        timeout: 30
+
+      # Regular round-robin for stateless API
+      - id: api-route
+        path: /api/*
+        serviceName: api-service
+        loadBalance: round_robin
+        timeout: 10
+
+# Consistent Hash Behavior:
+#
+# 1. Session Affinity: Requests with the same session ID will always go to the same backend
+#    - Header: X-Session-Id
+#    - Cookie: session=<id>
+#    - Client IP as fallback
+#
+# 2. Minimal Disruption: When adding/removing instances, only ~1/N requests are affected
+#    - With 4 instances, adding a 5th moves only ~20% of sessions
+#    - Removing an instance only affects sessions on that instance
+#
+# 3. Virtual Nodes: Uses 150 virtual nodes per instance for even distribution
+#
+# 4. Failover: If the selected instance is unhealthy, routes to next in the ring
+#
+# Testing:
+# 
+# # Test with session header
+# curl -H "X-Session-Id: user123" http://localhost:8080/session/data
+# 
+# # Test with cookie
+# curl -b "session=user456" http://localhost:8080/session/data
+# 
+# # Test with client IP (will be consistent per client)
+# curl http://localhost:8080/session/data
+#
+# Benefits:
+# - Maintains session affinity for stateful applications
+# - Minimizes cache invalidation when scaling
+# - Provides predictable request routing
+# - Handles node failures gracefully
